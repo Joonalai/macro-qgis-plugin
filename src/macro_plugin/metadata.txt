@@ -1,0 +1,17 @@
+[general]
+name=Macros
+description=Tool and library to create macros in QGIS
+about=Tool and library to create macros in QGIS
+version=0.0.0.development
+qgisMinimumVersion=3.34
+qgisMaximumVersion=3.99
+# icon=
+author=Joonalai
+email=joona.laine@cofactor.fi
+changelog=
+tags= macro, task, performance, development, automation, automate
+repository=https://github.com/Joonalai/macro-qgis-plugin
+tracker=https://github.com/Joonalai/macro-qgis-plugin/issues
+homepage=https://github.com/Joonalai/macro-qgis-plugin
+experimental=False
+deprecated=False
