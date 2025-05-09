@@ -16,10 +16,4 @@
 #  You should have received a copy of the GNU General Public License
 #  along with macro-qgis-plugin. If not, see <https://www.gnu.org/licenses/>.
 
-QT_VERSION_MIN: str = "5.13.1"
-
-EPSILON = 1e-3
-
-# Cache interval for settings
-CACHE_INTERVAL = 5.0
 MS_EPSILON = 20
