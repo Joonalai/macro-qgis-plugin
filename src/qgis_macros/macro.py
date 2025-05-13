@@ -19,7 +19,7 @@
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Optional, cast
+from typing import Optional, Union, cast
 
 from qgis.core import QgsApplication
 from qgis.PyQt.QtCore import QElapsedTimer, QEvent, QObject, QPoint, Qt
@@ -29,18 +29,71 @@ from qgis.PyQt.QtWidgets import QApplication, QWidget
 
 from qgis_macros import utils
 from qgis_macros.constants import MS_EPSILON
+from qgis_macros.exceptions import WidgetNotFoundError
+
+MAXIMUM_NEAREST_CANDIDATES = 4
+
+MAXIMUM_PARENT_DEPTH = 7
 
 LOGGER = logging.getLogger(__name__)
 
 
 @dataclass
+class WidgetSpec:
+    widget_type: type[QWidget]
+    text: str = ""
+
+    @staticmethod
+    def create(widget: QWidget) -> "WidgetSpec":
+        return WidgetSpec(type(widget), utils.get_widget_text(widget))
+
+    def matches(self, widget: QWidget) -> bool:
+        return isinstance(
+            widget, self.widget_type
+        ) and self.text == utils.get_widget_text(widget)
+
+    def get_suitable_widget(
+        self, point: QPoint, widget: QWidget, level: int = 1
+    ) -> QWidget:
+        nearest_candidates = utils.find_nearest_visible_children_of_type(
+            point, widget, self.widget_type
+        )
+        for i, candidate in enumerate(nearest_candidates):
+            if self.matches(candidate):
+                return candidate
+            if i > MAXIMUM_NEAREST_CANDIDATES:
+                break
+        if level < MAXIMUM_PARENT_DEPTH and (parent := widget.parent()) is not None:
+            return self.get_suitable_widget(point, parent, level + 1)
+        raise WidgetNotFoundError
+
+
+@dataclass
 class MacroEvent(ABC):
+    widget_spec: WidgetSpec
     ms_since_last_event: int = 0
 
     @staticmethod
-    def move_cursor(position: tuple[int, int]) -> None:
-        QCursor.setPos(*position)
+    def move_cursor(position: Union[tuple[int, int], QPoint]) -> None:
+        if not isinstance(position, QPoint):
+            position = QPoint(*position)
+        QCursor.setPos(position)
         QgsApplication.processEvents()
+
+    def get_widget_and_relative_position(
+        self, position: tuple[int, int]
+    ) -> tuple[QWidget, QPoint]:
+        position = QPoint(*position)
+        widget = QApplication.widgetAt(position)
+        if not widget:
+            raise WidgetNotFoundError
+        if not self.widget_spec.matches(widget):
+            # Sometimes dialogs might appear in a slightly different position
+            widget = self.widget_spec.get_suitable_widget(position, widget.parent)
+            position = widget.mapToGlobal(widget.geometry().center())
+        widget.setFocus()
+        self.move_cursor(position)
+        return widget, widget.mapFromGlobal(position)
 
     @abstractmethod
     def perform_event_action(self) -> None: ...
@@ -49,7 +102,10 @@ class MacroEvent(ABC):
         if not isinstance(other, MacroEvent):
             return NotImplemented
 
-        return abs(self.ms_since_last_event - other.ms_since_last_event) < MS_EPSILON
+        return (
+            self.widget_spec == other.widget_spec
+            and abs(self.ms_since_last_event - other.ms_since_last_event) < MS_EPSILON
+        )
 
 
 @dataclass
@@ -134,6 +190,7 @@ class MacroMouseMoveEvent(MacroEvent):
             positions = [self.positions[0], self.positions[-1]]
         return (
             f"MacroMouseMoveEvent(ms_since_last_event={self.ms_since_last_event}, "
+            f"widget_spec={self.widget_spec}, "
             f"modifiers={self.modifiers}, "
             f"buttons={self.buttons}, "
             f"positions={positions})"
@@ -148,13 +205,7 @@ class MacroMouseEvent(MacroEvent):
     modifiers: int = Qt.NoModifier
 
     def perform_event_action(self) -> None:
-        self.move_cursor(self.position)
-        position = QPoint(*self.position)
-        widget = QApplication.widgetAt(QCursor.pos())
-        if not widget:
-            return
-        widget.setFocus()
-        position = widget.mapFromGlobal(position)
+        widget, position = self.get_widget_and_relative_position(self.position)
         if not self.is_release:
             # Ensure the widget under the mouse cursor is focused
             QTest.mousePress(
@@ -189,11 +240,7 @@ class MacroMouseDoubleClickEvent(MacroEvent):
     modifiers: int = Qt.NoModifier
 
     def perform_event_action(self) -> None:
-        position = QPoint(*self.position)
-        widget = QApplication.widgetAt(QCursor.pos())
-        if widget:
-            widget.setFocus()
-            position = widget.mapFromGlobal(position)
+        widget, position = self.get_widget_and_relative_position(self.position)
         QTest.mouseDClick(
             widget,
             Qt.MouseButton(self.button),
@@ -259,6 +306,8 @@ class MacroRecorder(QObject):
 
         :return: New Macro object with recorded events
         """
+        if not self._recording:
+            return Macro([])
         self._recording = False
         QApplication.instance().removeEventFilter(self)
         events = (
@@ -281,21 +330,22 @@ class MacroRecorder(QObject):
 
         if (
             isinstance(event, QMouseEvent)
-            and QApplication.widgetAt(event.globalPos())
-            in self._widgets_to_filter_events_out
+            and widget in self._widgets_to_filter_events_out
         ):
             return super().eventFilter(obj, event)
 
         # TODO: mouse wheel
         if event.type() in [QEvent.KeyPress, QEvent.KeyRelease]:
-            self._record_key_event(event, ms_since_last_event)
+            self._record_key_event(event, widget, ms_since_last_event)
         elif event.type() in [QEvent.MouseButtonPress, QEvent.MouseButtonRelease]:
-            self._record_mouse_button_event(event, ms_since_last_event)
+            self._record_mouse_button_event(event, widget, ms_since_last_event)
         elif event.type() == QEvent.MouseButtonDblClick:
-            self._record_mouse_button_double_click_event(event, ms_since_last_event)
+            self._record_mouse_button_double_click_event(
+                event, widget, ms_since_last_event
+            )
         # Mouse move over map canvas
-        elif event.type() == QEvent.MouseMove and utils.is_object_map_canvas(widget):
-            self._record_mouse_move_event(event)
+        elif event.type() == QEvent.MouseMove and utils.is_object_map_canvas(obj):
+            self._record_mouse_move_event(event, widget)
 
         return super().eventFilter(obj, event)
 
@@ -310,7 +360,11 @@ class MacroRecorder(QObject):
         if isinstance(first_element, MacroMouseMoveEvent):
             first_index = 1
             filtered_events.append(
-                MacroMouseMoveEvent(0, [first_element.positions[-1]])
+                MacroMouseMoveEvent(
+                    widget_spec=first_element.widget_spec,
+                    ms_since_last_event=0,
+                    positions=[first_element.positions[-1]],
+                )
             )
         else:
             first_index = 0
@@ -320,13 +374,16 @@ class MacroRecorder(QObject):
 
         return filtered_events
 
-    def _record_key_event(self, event: QKeyEvent, elapsed: int) -> None:
+    def _record_key_event(
+        self, event: QKeyEvent, widget_spec: WidgetSpec, elapsed: int
+    ) -> None:
         """Record key press or release events."""
         macro_event = MacroKeyEvent(
-            elapsed,
+            ms_since_last_event=elapsed,
             key=event.key(),
             is_release=event.type() == QEvent.KeyRelease,
             modifiers=int(event.modifiers()),
+            widget_spec=widget_spec,
         )
 
         # Do not add if the last mouse button event was the same
@@ -341,14 +398,17 @@ class MacroRecorder(QObject):
 
         self._recorded_events.append(macro_event)
 
-    def _record_mouse_button_event(self, event: QMouseEvent, elapsed: int) -> None:
+    def _record_mouse_button_event(
+        self, event: QMouseEvent, widget: QWidget, elapsed: int
+    ) -> None:
         """Record mouse button press or release events."""
         macro_event = MacroMouseEvent(
-            elapsed,
+            ms_since_last_event=elapsed,
             position=(event.globalX(), event.globalY()),
             is_release=event.type() == QEvent.MouseButtonRelease,
             button=event.button(),
             modifiers=int(event.modifiers()),
+            widget_spec=WidgetSpec.create(widget),
         )
 
         # Do not add if the last mouse button event was the same
@@ -366,7 +426,7 @@ class MacroRecorder(QObject):
         self._recorded_events.append(macro_event)
 
     def _record_mouse_button_double_click_event(
-        self, event: QMouseEvent, elapsed: int
+        self, event: QMouseEvent, widget: QWidget, elapsed: int
     ) -> None:
         """Record mouse double click events."""
         self._recorded_events.append(
@@ -375,10 +435,11 @@ class MacroRecorder(QObject):
                 position=(event.globalX(), event.globalY()),
                 button=event.button(),
                 modifiers=int(event.modifiers()),
+                widget_spec=WidgetSpec.create(widget),
             )
         )
 
-    def _record_mouse_move_event(self, event: QMouseEvent) -> None:
+    def _record_mouse_move_event(self, event: QMouseEvent, widget: QWidget) -> None:
         """Record mouse movement events."""
         current_position = (event.globalX(), event.globalY())
         last_event = self._recorded_events[-1] if self._recorded_events else None
@@ -387,7 +448,8 @@ class MacroRecorder(QObject):
         else:
             self._recorded_events.append(
                 MacroMouseMoveEvent(
-                    0,
+                    widget_spec=WidgetSpec.create(widget),
+                    ms_since_last_event=0,
                     positions=[current_position],
                     buttons=int(event.buttons()),
                     modifiers=int(event.modifiers()),
