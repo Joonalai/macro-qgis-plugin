@@ -15,28 +15,25 @@
 #
 #  You should have received a copy of the GNU General Public License
 #  along with macro-qgis-plugin. If not, see <https://www.gnu.org/licenses/>.
-
+import logging
 from collections.abc import Iterator
 from typing import TYPE_CHECKING
 
 import pytest
 from qgis.PyQt.QtCore import Qt
 
-from macro_test_utils.utils import Dialog, WidgetEventListener, WidgetInfo
+from macro_test_utils import macro_utils
+from macro_test_utils.utils import Dialog, WidgetInfo
 from qgis_macros.macro import (
-    Macro,
-    MacroKeyEvent,
     MacroMouseDoubleClickEvent,
-    MacroMouseEvent,
-    MacroMouseMoveEvent,
-    MacroPlayer,
-    MacroRecorder,
 )
-
-WAIT_MS = 5
+from qgis_macros.macro_recorder import MacroRecorder
 
 if TYPE_CHECKING:
     from pytestqt.qtbot import QtBot
+
+WAIT_MS = 5
+LOGGER = logging.getLogger(__name__)
 
 
 @pytest.fixture
@@ -47,20 +44,6 @@ def macro_recorder() -> Iterator[MacroRecorder]:
     recorder.stop_recording()
 
 
-@pytest.fixture
-def macro_player():
-    return MacroPlayer()
-
-
-@pytest.fixture
-def widget_listener() -> Iterator[WidgetEventListener]:
-    listener = WidgetEventListener()
-    try:
-        yield listener
-    finally:
-        listener.stop_listening()
-
-
 @pytest.mark.skip(reason="Ment for manual testing")
 def test_macro_recorder_manual(
     macro_recorder: MacroRecorder, dialog: Dialog, qtbot: "QtBot"
@@ -68,6 +51,7 @@ def test_macro_recorder_manual(
     qtbot.wait(5000)
     macro = macro_recorder.stop_recording()
     assert macro is None
+    LOGGER.info("\nMacro:\n%s", macro)
 
 
 @pytest.mark.parametrize(
@@ -104,20 +88,8 @@ def test_macro_recorder_should_record_button_clicking_macro(
     macro = macro_recorder.stop_recording()
 
     # Assert
-    assert macro == Macro(
-        events=[
-            MacroMouseEvent(
-                position=button.global_xy,
-                modifiers=int(modifier),
-            ),
-            MacroMouseEvent(
-                position=button.global_xy,
-                is_release=True,
-                modifiers=int(modifier),
-            ),
-        ],
-        name=None,
-        speed=1.0,
+    assert macro.events == list(
+        macro_utils.widget_clicking_macro_events(button, (0, 0), modifier)
     )
 
 
@@ -155,17 +127,15 @@ def test_macro_recorder_should_record_button_double_clicking_macro(
     macro = macro_recorder.stop_recording()
 
     # Assert
-    assert macro == Macro(
-        events=[
-            MacroMouseDoubleClickEvent(
-                position=button.global_xy,
-                button=1,
-                modifiers=int(modifier),
-            ),
-        ],
-        name=None,
-        speed=1.0,
-    )
+    assert macro.events == [
+        MacroMouseDoubleClickEvent(
+            ms_since_last_event=0,
+            widget_spec=button.widget_spec,
+            position=button.global_xy,
+            button=1,
+            modifiers=int(modifier),
+        ),
+    ]
 
 
 @pytest.mark.parametrize(
@@ -213,84 +183,8 @@ def test_macro_recorder_should_record_key_clicking_macro(
     )
 
     # Assert
-    assert macro == Macro(
-        events=[
-            MacroMouseMoveEvent(positions=[line_edit.global_xy]),
-            MacroMouseEvent(
-                position=line_edit.global_xy,
-            ),
-            MacroMouseEvent(
-                position=line_edit.global_xy,
-                is_release=True,
-            ),
-            MacroKeyEvent(
-                key=Qt.Key_A,
-                modifiers=int(modifier),
-            ),
-            MacroKeyEvent(
-                key=Qt.Key_A,
-                modifiers=int(modifier),
-                is_release=True,
-            ),
-        ],
-        name=None,
-        speed=1.0,
-    )
-
-
-def test_macro_player_play_button_macro(
-    macro_recorder: MacroRecorder,
-    macro_player: MacroPlayer,
-    dialog_widget_positions: dict[str, WidgetInfo],
-    dialog: Dialog,
-    qtbot: "QtBot",
-):
-    # Arrange
-    qtbot.mouseMove(dialog.button)
-    qtbot.wait(WAIT_MS * 5)
-    qtbot.mouseClick(dialog.button, Qt.LeftButton)
-    macro = macro_recorder.stop_recording()
-
-    # Act and assert
-    with qtbot.waitSignal(dialog.button.clicked, timeout=10):
-        macro_player.play(macro)
-
-
-def test_macro_player_play_button_double_click_macro(
-    macro_recorder: MacroRecorder,
-    macro_player: MacroPlayer,
-    dialog_widget_positions: dict[str, WidgetInfo],
-    dialog: Dialog,
-    widget_listener: WidgetEventListener,
-    qtbot: "QtBot",
-):
-    # Arrange
-    qtbot.mouseMove(dialog.button)
-    qtbot.mouseDClick(dialog.button, Qt.LeftButton)
-    macro = macro_recorder.stop_recording()
-    widget_listener.start_listening(dialog.button)
-
-    # Act and assert
-    with qtbot.waitSignal(widget_listener.double_clicked, timeout=10):
-        macro_player.play(macro)
-
-
-def test_macro_player_play_line_edit_macro(
-    macro_recorder: MacroRecorder,
-    macro_player: MacroPlayer,
-    dialog_widget_positions: dict[str, WidgetInfo],
-    dialog: Dialog,
-    widget_listener: WidgetEventListener,
-    qtbot: "QtBot",
-):
-    # Arrange
-    qtbot.mouseMove(dialog.line_edit)
-    qtbot.mouseClick(dialog.line_edit, Qt.LeftButton)
-    qtbot.keyClick(dialog.line_edit, Qt.Key_A)
-    macro = macro_recorder.stop_recording()
-    dialog.line_edit.clear()
-
-    # Act and assert
-    with qtbot.waitSignal(dialog.line_edit.textEdited, timeout=5000):
-        macro_player.play(macro)
-    assert dialog.line_edit.text() == "a"
+    assert macro.events == [
+        macro_utils.mouse_move_macro_event(line_edit),
+        *macro_utils.widget_clicking_macro_events(line_edit),
+        *macro_utils.key_macro_events(line_edit, Qt.Key_A, modifiers=modifier),
+    ]

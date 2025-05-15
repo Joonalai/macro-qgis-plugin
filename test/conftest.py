@@ -19,6 +19,7 @@ import logging
 from typing import TYPE_CHECKING
 
 import pytest
+from qgis.PyQt.QtGui import QCursor
 from qgis.PyQt.QtWidgets import (
     QWidget,
 )
@@ -41,6 +42,8 @@ def dialog(qtbot: "QtBot", qgis_parent: "QWidget") -> Dialog:
     dialog.show()
 
     # Move mouse to the dialog and simulate some mouse movements
+    QCursor.setPos(dialog.pos())
+    qtbot.mouseMove(dialog)
     qtbot.mouseMove(dialog)
     qtbot.wait(WAIT_AFTER_MOUSE_MOVE)
     qtbot.wait(WAIT_AFTER_MOUSE_MOVE)

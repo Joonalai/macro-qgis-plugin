@@ -25,7 +25,9 @@ from qgis.PyQt.QtWidgets import QInputDialog, QToolButton
 
 from macro_plugin.ui.macro_model import MacroTableModel
 from macro_plugin.ui.macro_panel import MACRO_GROUP, MacroPanel, QgsApplication
-from qgis_macros.macro import Macro, MacroPlayer, MacroRecorder
+from qgis_macros.macro import Macro
+from qgis_macros.macro_player import MacroPlayer
+from qgis_macros.macro_recorder import MacroRecorder
 
 if TYPE_CHECKING:
     from pytest_mock import MockerFixture

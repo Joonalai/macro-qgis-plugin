@@ -17,3 +17,5 @@
 #  along with macro-qgis-plugin. If not, see <https://www.gnu.org/licenses/>.
 
 MS_EPSILON = 20
+MAXIMUM_NEAREST_CANDIDATES = 4
+MAXIMUM_PARENT_DEPTH = 7

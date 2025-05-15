@@ -19,7 +19,7 @@
 import dataclasses
 import time
 from functools import partial
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from qgis.core import QgsApplication
 from qgis.PyQt.QtCore import QEvent, QObject, QPoint, pyqtSignal
@@ -34,6 +34,9 @@ from qgis.PyQt.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+if TYPE_CHECKING:
+    from qgis_macros.macro import WidgetSpec
 
 
 class Dialog(QDialog):
@@ -87,6 +90,12 @@ class WidgetInfo:
     def global_xy(self) -> tuple[int, int]:
         point = self.global_point
         return point.x(), point.y()
+
+    @property
+    def widget_spec(self) -> "WidgetSpec":
+        from qgis_macros.macro import WidgetSpec
+
+        return WidgetSpec.create(self.widget)
 
     @staticmethod
     def from_widget(name: str, widget: QWidget) -> "WidgetInfo":

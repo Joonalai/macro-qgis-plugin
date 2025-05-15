@@ -31,7 +31,8 @@ from qgis_plugin_tools.tools.i18n import tr
 from qgis_plugin_tools.tools.resources import load_ui_from_file
 
 from macro_plugin.ui.macro_model import MacroTableModel
-from qgis_macros.macro import MacroPlayer, MacroRecorder
+from qgis_macros.macro_player import MacroPlayer
+from qgis_macros.macro_recorder import MacroRecorder
 
 MACRO_GROUP = "Macro"
 
