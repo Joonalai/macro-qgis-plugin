@@ -24,9 +24,6 @@ from qgis.PyQt.QtCore import Qt
 
 from macro_test_utils import macro_utils
 from macro_test_utils.utils import Dialog, WidgetInfo
-from qgis_macros.macro import (
-    MacroMouseDoubleClickEvent,
-)
 from qgis_macros.macro_recorder import MacroRecorder
 
 if TYPE_CHECKING:
@@ -45,13 +42,15 @@ def macro_recorder() -> Iterator[MacroRecorder]:
 
 
 @pytest.mark.skip(reason="Ment for manual testing")
+@pytest.mark.timeout(60)
 def test_macro_recorder_manual(
     macro_recorder: MacroRecorder, dialog: Dialog, qtbot: "QtBot"
 ):
-    qtbot.wait(5000)
+    while dialog.isVisible():
+        qtbot.wait(100)
     macro = macro_recorder.stop_recording()
-    assert macro is None
-    LOGGER.info("\nMacro:\n%s", macro)
+    assert macro
+    LOGGER.info("\nMacro:\n%s", str(macro).replace("Macro", "\nMacro"))
 
 
 @pytest.mark.parametrize(
@@ -83,13 +82,13 @@ def test_macro_recorder_should_record_button_clicking_macro(
 
     # Act
     qtbot.mouseClick(
-        dialog.button, Qt.LeftButton, pos=button.local_center, modifier=modifier
+        dialog.button, Qt.LeftButton, pos=button.position.local_point, modifier=modifier
     )
     macro = macro_recorder.stop_recording()
 
     # Assert
     assert macro.events == list(
-        macro_utils.widget_clicking_macro_events(button, (0, 0), modifier)
+        macro_utils.widget_clicking_macro_events(button, (0, 0), int(modifier))
     )
 
 
@@ -122,19 +121,13 @@ def test_macro_recorder_should_record_button_double_clicking_macro(
 
     # Act
     qtbot.mouseDClick(
-        dialog.button, Qt.LeftButton, pos=button.local_center, modifier=modifier
+        dialog.button, Qt.LeftButton, pos=button.position.local_point, modifier=modifier
     )
     macro = macro_recorder.stop_recording()
 
     # Assert
     assert macro.events == [
-        MacroMouseDoubleClickEvent(
-            ms_since_last_event=0,
-            widget_spec=button.widget_spec,
-            position=button.global_xy,
-            button=1,
-            modifiers=int(modifier),
-        ),
+        macro_utils.widget_double_clicking_macro_event(button, modifiers=int(modifier))
     ]
 
 
@@ -168,9 +161,11 @@ def test_macro_recorder_should_record_key_clicking_macro(
 
     # Act
     qtbot.wait(WAIT_MS)
-    qtbot.mouseMove(dialog.line_edit, pos=line_edit.local_center)
+    qtbot.mouseMove(dialog.line_edit, pos=line_edit.position.local_position)
     qtbot.wait(WAIT_MS * 5)
-    qtbot.mouseClick(dialog.line_edit, Qt.LeftButton, pos=line_edit.local_center)
+    qtbot.mouseClick(
+        dialog.line_edit, Qt.LeftButton, pos=line_edit.position.local_position
+    )
     qtbot.keyPress(dialog.line_edit, Qt.Key_A, modifier=modifier)
     qtbot.wait(WAIT_MS)
     qtbot.keyRelease(dialog.line_edit, Qt.Key_A, modifier=modifier)

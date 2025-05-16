@@ -80,6 +80,42 @@ class MacroEvent(Protocol):
         ...
 
 
+@dataclass(frozen=True)
+class Position:
+    local_position: tuple[int, int]
+    global_position: tuple[int, int]
+
+    @staticmethod
+    def from_event(event: QMouseEvent) -> "Position":
+        return Position(
+            (event.x(), event.y()),
+            (event.globalX(), event.globalY()),
+        )
+
+    @staticmethod
+    def from_points(local_point: QPoint, global_point: QPoint) -> "Position":
+        return Position(
+            (local_point.x(), local_point.y()),
+            (global_point.x(), global_point.y()),
+        )
+
+    @property
+    def local_point(self) -> QPoint:
+        return QPoint(*self.local_position)
+
+    @property
+    def global_point(self) -> QPoint:
+        return QPoint(*self.global_position)
+
+    def widget_corrected_position(self, widget: QWidget) -> "Position":
+        return Position.from_points(
+            self.local_point, widget.mapToGlobal(self.local_point)
+        )
+
+
+default_position = Position((0, 0), (0, 0))
+
+
 @dataclass
 class BaseMacroEvent(ABC):
     widget_spec: WidgetSpec
@@ -92,20 +128,23 @@ class BaseMacroEvent(ABC):
         QCursor.setPos(position)
         QgsApplication.processEvents()
 
-    def get_widget_and_relative_position(
-        self, position: tuple[int, int]
-    ) -> tuple[QWidget, QPoint]:
-        position = QPoint(*position)
-        widget = QApplication.widgetAt(position)
+    def get_widget(self, position: Position) -> QWidget:
+        global_point = position.global_point
+        widget = QApplication.widgetAt(global_point)
         if not widget:
             raise WidgetNotFoundError
         if not self.widget_spec.matches(widget):
             # Sometimes dialogs might appear in a slightly different position
-            widget = self.widget_spec.get_suitable_widget(position, widget.parent())
-            position = widget.mapToGlobal(widget.geometry().center())
+            widget = self.widget_spec.get_suitable_widget(global_point, widget.parent())
         widget.setFocus()
-        self.move_cursor(position)
-        return widget, widget.mapFromGlobal(position)
+        return widget
+
+    def get_widget_and_corrected_position(
+        self, position: Position
+    ) -> tuple[QWidget, Position]:
+        widget = self.get_widget(position)
+        corrected_position = position.widget_corrected_position(widget)
+        return widget, corrected_position
 
     @abstractmethod
     def perform_event_action(self) -> None: ...
@@ -152,11 +191,11 @@ class MacroKeyEvent(BaseMacroEvent):
 
 @dataclass
 class MacroMouseMoveEvent(BaseMacroEvent):
-    positions: list[tuple[int, int]] = field(default_factory=list)
+    positions: list[Position] = field(default_factory=list)
     buttons: int = Qt.NoButton
     modifiers: int = Qt.NoModifier
 
-    def add_position(self, position: tuple[int, int]) -> None:
+    def add_position(self, position: Position) -> None:
         if self.positions and position == self.positions[-1]:
             return
         self.positions.append(position)
@@ -165,20 +204,26 @@ class MacroMouseMoveEvent(BaseMacroEvent):
         if self.buttons != Qt.NoButton:
             return self.perform_event_action_with_event()
 
+        if not self.positions:
+            return None
+        widget = self.get_widget(self.positions[0])
+
         for position in self.positions:
-            self.move_cursor(position)
+            self.move_cursor(position.widget_corrected_position(widget).global_point)
         return None
 
     def perform_event_action_with_event(self) -> None:
+        if not self.positions:
+            return
+        widget = self.get_widget(self.positions[0])
+
         for position in self.positions:
-            global_pos = QPoint(*position)
-            widget = QApplication.widgetAt(global_pos)
-            local_pos = widget.mapFromGlobal(global_pos) if widget else global_pos
+            corrected_position = position.widget_corrected_position(widget)
             # Create and send mouse move events
             event = QMouseEvent(
                 QEvent.MouseMove,
-                local_pos,
-                global_pos,
+                corrected_position.local_point,
+                corrected_position.global_point,
                 Qt.NoButton,
                 Qt.MouseButtons(self.buttons),
                 Qt.KeyboardModifiers(self.modifiers),
@@ -211,27 +256,30 @@ class MacroMouseMoveEvent(BaseMacroEvent):
 
 @dataclass
 class MacroMouseEvent(BaseMacroEvent):
-    position: tuple[int, int] = (0, 0)
+    position: Position = default_position
     is_release: bool = False
     button: int = Qt.LeftButton
     modifiers: int = Qt.NoModifier
 
     def perform_event_action(self) -> None:
-        widget, position = self.get_widget_and_relative_position(self.position)
+        widget, corrected_position = self.get_widget_and_corrected_position(
+            self.position
+        )
+        self.move_cursor(corrected_position.global_point)
         if not self.is_release:
             # Ensure the widget under the mouse cursor is focused
             QTest.mousePress(
                 widget,
                 Qt.MouseButton(self.button),
                 Qt.KeyboardModifiers(self.modifiers),
-                position,
+                corrected_position.local_point,
             )
         else:
             QTest.mouseRelease(
                 widget,
                 Qt.MouseButton(self.button),
                 Qt.KeyboardModifiers(self.modifiers),
-                position,
+                corrected_position.local_point,
             )
 
     def __eq__(self, other: object) -> bool:
@@ -247,17 +295,20 @@ class MacroMouseEvent(BaseMacroEvent):
 
 @dataclass
 class MacroMouseDoubleClickEvent(BaseMacroEvent):
-    position: tuple[int, int] = (0, 0)
+    position: Position = default_position
     button: int = Qt.LeftButton
     modifiers: int = Qt.NoModifier
 
     def perform_event_action(self) -> None:
-        widget, position = self.get_widget_and_relative_position(self.position)
+        widget, corrected_position = self.get_widget_and_corrected_position(
+            self.position
+        )
+        self.move_cursor(corrected_position.global_point)
         QTest.mouseDClick(
             widget,
             Qt.MouseButton(self.button),
             Qt.KeyboardModifiers(self.modifiers),
-            position,
+            corrected_position.local_point,
         )
 
     def __eq__(self, other: object) -> bool:

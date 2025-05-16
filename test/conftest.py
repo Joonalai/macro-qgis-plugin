@@ -52,8 +52,17 @@ def dialog(qtbot: "QtBot", qgis_parent: "QWidget") -> Dialog:
 
 @pytest.fixture
 def dialog_widget_positions(dialog: Dialog) -> dict[str, utils.WidgetInfo]:
-    return {
+    widgets = {
         name: utils.WidgetInfo.from_widget(name, widget)
         for name in dir(dialog)
         if isinstance((widget := getattr(dialog, name, None)), QWidget)
     }
+    widgets["list_widget_viewport"] = utils.WidgetInfo.from_widget(
+        "list_widget_viewport", dialog.list_widget.viewport()
+    )
+    widgets["combobox_viewport"] = utils.WidgetInfo.from_widget(
+        "combobox_viewport",
+        dialog.combobox.view().findChild(QWidget, "qt_scrollarea_viewport"),
+    )
+
+    return widgets

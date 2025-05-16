@@ -36,7 +36,7 @@ from qgis.PyQt.QtWidgets import (
 )
 
 if TYPE_CHECKING:
-    from qgis_macros.macro import WidgetSpec
+    from qgis_macros.macro import Position, WidgetSpec
 
 
 class Dialog(QDialog):
@@ -75,21 +75,7 @@ class WidgetInfo:
 
     name: str
     widget: QWidget
-    x: int
-    y: int
-
-    @property
-    def local_center(self) -> QPoint:
-        return QPoint(self.x, self.y)
-
-    @property
-    def global_point(self) -> QPoint:
-        return self.widget.mapToGlobal(QPoint(self.x, self.y))
-
-    @property
-    def global_xy(self) -> tuple[int, int]:
-        point = self.global_point
-        return point.x(), point.y()
+    position: "Position"
 
     @property
     def widget_spec(self) -> "WidgetSpec":
@@ -99,8 +85,16 @@ class WidgetInfo:
 
     @staticmethod
     def from_widget(name: str, widget: QWidget) -> "WidgetInfo":
-        center = widget.geometry().center()
-        return WidgetInfo(name, widget, center.x(), center.y())
+        from qgis_macros.macro import Position
+
+        geometry = widget.geometry()
+        local_center = QPoint(geometry.width() // 2, geometry.height() // 2)
+        if isinstance(widget, (QRadioButton, QCheckBox)):
+            local_center = QPoint(10, local_center.y())
+        global_center = widget.mapToGlobal(local_center)
+        return WidgetInfo(
+            name, widget, Position.from_points(local_center, global_center)
+        )
 
 
 def wait(wait_ms: int) -> None:

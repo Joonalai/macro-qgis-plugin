@@ -26,6 +26,7 @@ from qgis_macros.macro import (
     MacroMouseDoubleClickEvent,
     MacroMouseEvent,
     MacroMouseMoveEvent,
+    Position,
 )
 
 """
@@ -35,20 +36,22 @@ Helper functions to create macro events for testing
 
 def widget_clicking_macro_events(
     widget: WidgetInfo,
+    position: Optional[Position] = None,
     elapsed: tuple[int, int] = (0, 0),
     modifiers: int = Qt.NoModifier,
 ) -> list[MacroEvent]:
+    position = position if position else widget.position
     return [
         MacroMouseEvent(
             widget_spec=widget.widget_spec,
             ms_since_last_event=elapsed[0],
-            position=widget.global_xy,
+            position=position,
             modifiers=modifiers,
         ),
         MacroMouseEvent(
             widget_spec=widget.widget_spec,
             ms_since_last_event=elapsed[1],
-            position=widget.global_xy,
+            position=position,
             is_release=True,
             modifiers=modifiers,
         ),
@@ -61,7 +64,7 @@ def widget_double_clicking_macro_event(
     return MacroMouseDoubleClickEvent(
         widget_spec=widget.widget_spec,
         ms_since_last_event=elapsed,
-        position=widget.global_xy,
+        position=widget.position,
         modifiers=modifiers,
     )
 
@@ -91,11 +94,11 @@ def key_macro_events(
 
 def mouse_move_macro_event(
     widget: WidgetInfo,
-    positions: Optional[list[tuple[int, int]]] = None,
+    positions: Optional[list[Position]] = None,
     elapsed: int = 0,
     modifiers: int = Qt.NoModifier,
 ) -> MacroEvent:
-    positions = positions if positions else [widget.global_xy]
+    positions = positions if positions else [widget.position]
     return MacroMouseMoveEvent(
         widget_spec=widget.widget_spec,
         ms_since_last_event=elapsed,

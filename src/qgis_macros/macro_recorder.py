@@ -30,6 +30,7 @@ from qgis_macros.macro import (
     MacroMouseDoubleClickEvent,
     MacroMouseEvent,
     MacroMouseMoveEvent,
+    Position,
     WidgetSpec,
 )
 
@@ -172,7 +173,7 @@ class MacroRecorder(QObject):
         """Record mouse button press or release events."""
         macro_event = MacroMouseEvent(
             ms_since_last_event=elapsed,
-            position=(event.globalX(), event.globalY()),
+            position=Position.from_event(event),
             is_release=event.type() == QEvent.MouseButtonRelease,
             button=event.button(),
             modifiers=int(event.modifiers()),
@@ -200,7 +201,7 @@ class MacroRecorder(QObject):
         self._recorded_events.append(
             MacroMouseDoubleClickEvent(
                 ms_since_last_event=elapsed,
-                position=(event.globalX(), event.globalY()),
+                position=Position.from_event(event),
                 button=event.button(),
                 modifiers=int(event.modifiers()),
                 widget_spec=WidgetSpec.create(widget),
@@ -209,7 +210,7 @@ class MacroRecorder(QObject):
 
     def _record_mouse_move_event(self, event: QMouseEvent, widget: QWidget) -> None:
         """Record mouse movement events."""
-        current_position = (event.globalX(), event.globalY())
+        current_position = Position.from_event(event)
         last_event = self._recorded_events[-1] if self._recorded_events else None
         if isinstance(last_event, MacroMouseMoveEvent):
             last_event.add_position(current_position)
