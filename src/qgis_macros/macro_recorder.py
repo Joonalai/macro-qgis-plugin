@@ -85,8 +85,9 @@ class MacroRecorder(QObject):
             if self._filter_out_mouse_movements
             else self._recorded_events
         )
-        LOGGER.debug(events)
-        return Macro(events)
+        macro = Macro(events)
+        LOGGER.debug("Recorded macro %s", macro)
+        return macro
 
     def eventFilter(self, obj: QObject, event: QEvent) -> bool:  # noqa: N802
         """Event filter to record keyboard and mouse events."""

@@ -23,6 +23,7 @@ from typing import Optional
 from qgis.core import QgsApplication
 from qgis.PyQt.QtCore import QElapsedTimer, QObject, QTimer, pyqtSignal
 
+from qgis_macros.exceptions import MacroPlaybackEndedError
 from qgis_macros.macro import Macro, MacroEvent
 
 LOGGER = logging.getLogger(__name__)
@@ -39,6 +40,10 @@ class MacroPlaybackStatus(enum.Enum):
 class MacroPlaybackReport:
     status: MacroPlaybackStatus = MacroPlaybackStatus.SUCCESS
     error: Optional[Exception] = None
+
+    def __post_init__(self) -> None:
+        if self.status == MacroPlaybackStatus.FAILURE and self.error is None:
+            raise ValueError("Error must be provided if status is failure.")  # noqa: TRY003
 
 
 class MacroPlayer(QObject):
@@ -87,7 +92,7 @@ class MacroPlayer(QObject):
         macro_event = self._event_queue.pop(0)
 
         def on_event_finished() -> None:
-            wait_time = int(macro_event.ms_since_last_event * self._speed) + 5
+            wait_time = int(macro_event.ms_since_last_event * self._speed) + 15
             QTimer.singleShot(wait_time, self._play_next_event)
 
         try:
@@ -100,5 +105,7 @@ class MacroPlayer(QObject):
             self._playback_halted = True
             LOGGER.exception("Playing macro stopped due to exception.")
             self.playback_ended.emit(
-                MacroPlaybackReport(MacroPlaybackStatus.FAILURE, e)
+                MacroPlaybackReport(
+                    MacroPlaybackStatus.FAILURE, MacroPlaybackEndedError(e)
+                )
             )

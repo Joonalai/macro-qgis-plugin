@@ -15,13 +15,10 @@
 #
 #  You should have received a copy of the GNU General Public License
 #  along with macro-qgis-plugin. If not, see <https://www.gnu.org/licenses/>.
-from typing import TYPE_CHECKING, Optional
 
+from qgis_plugin_tools.tools.custom_logging import bar_msg
 from qgis_plugin_tools.tools.exceptions import QgsPluginException
 from qgis_plugin_tools.tools.i18n import tr
-
-if TYPE_CHECKING:
-    from qgis.PyQt.QtWidgets import QWidget
 
 
 class MacroPluginError(QgsPluginException):
@@ -31,15 +28,20 @@ class MacroPluginError(QgsPluginException):
 class WidgetNotFoundError(MacroPluginError):
     """Exception raised when a widget is not found."""
 
-    def __init__(
-        self, widget: Optional[type["QWidget"]] = None, text: str = ""
-    ) -> None:
+    def __init__(self, widget_class: str = "", text: str = "") -> None:
         widget_text = ""
-        if widget:
-            widget_text += f"{widget} - "
+        if widget_class:
+            widget_text += f"{widget_class} - "
         widget_text += text
 
-        super().__init__(tr("Widget {} not found.", widget_text))
+        super().__init__(
+            tr("Widget {} not found.", widget_text),
+        )
+
+
+class MacroPlaybackEndedError(MacroPluginError):
+    def __init__(self, e: Exception) -> None:
+        super().__init__(tr("Macro playback ended"), bar_msg(details=str(e)))
 
 
 class InvalidSettingValueError(MacroPluginError):

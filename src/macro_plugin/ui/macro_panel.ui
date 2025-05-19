@@ -83,6 +83,32 @@
       </widget>
      </item>
      <item>
+      <widget class="QToolButton" name="button_open">
+       <property name="toolTip">
+        <string>Open macros from the disk</string>
+       </property>
+       <property name="text">
+        <string/>
+       </property>
+       <property name="autoRaise">
+        <bool>false</bool>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QToolButton" name="button_save">
+       <property name="toolTip">
+        <string>Save all macros to the disk...</string>
+       </property>
+       <property name="text">
+        <string/>
+       </property>
+       <property name="autoRaise">
+        <bool>false</bool>
+       </property>
+      </widget>
+     </item>
+     <item>
       <widget class="Line" name="line">
        <property name="frameShadow">
         <enum>QFrame::Sunken</enum>

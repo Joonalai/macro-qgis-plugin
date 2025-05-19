@@ -15,7 +15,7 @@
 #
 #  You should have received a copy of the GNU General Public License
 #  along with macro-qgis-plugin. If not, see <https://www.gnu.org/licenses/>.
-
+import dataclasses
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -39,23 +39,24 @@ LOGGER = logging.getLogger(__name__)
 
 @dataclass
 class WidgetSpec:
-    widget_type: type[QWidget]
+    widget_class: str
     text: str = ""
 
     @staticmethod
     def create(widget: QWidget) -> "WidgetSpec":
-        return WidgetSpec(type(widget), utils.get_widget_text(widget))
+        return WidgetSpec(widget.__class__.__name__, utils.get_widget_text(widget))
 
     def matches(self, widget: QWidget) -> bool:
-        return isinstance(
-            widget, self.widget_type
-        ) and self.text == utils.get_widget_text(widget)
+        return (
+            widget.__class__.__name__ == self.widget_class
+            and self.text == utils.get_widget_text(widget)
+        )
 
     def get_suitable_widget(
         self, point: QPoint, widget: QWidget, level: int = 1
     ) -> QWidget:
         nearest_candidates = utils.find_nearest_visible_children_of_type(
-            point, widget, self.widget_type
+            point, widget, self.widget_class
         )
         for i, candidate in enumerate(nearest_candidates):
             if self.matches(candidate):
@@ -64,7 +65,7 @@ class WidgetSpec:
                 break
         if level < MAXIMUM_PARENT_DEPTH and (parent := widget.parent()) is not None:
             return self.get_suitable_widget(point, parent, level + 1)
-        raise WidgetNotFoundError(self.widget_type, self.text)
+        raise WidgetNotFoundError(self.widget_class, self.text)
 
 
 class MacroEvent(Protocol):
@@ -132,7 +133,7 @@ class BaseMacroEvent(ABC):
         widget = QApplication.widgetAt(global_point)
         if not widget:
             raise WidgetNotFoundError(
-                self.widget_spec.widget_type, self.widget_spec.text
+                self.widget_spec.widget_class, self.widget_spec.text
             )
         if not self.widget_spec.matches(widget):
             # Sometimes dialogs might appear in a slightly different position
@@ -330,3 +331,40 @@ class Macro:
     events: list[MacroEvent]
     name: Optional[str] = None
     speed: float = 1.0
+
+    def serialize(self) -> dict:
+        events: list[dict] = []
+        data = {"name": self.name, "speed": self.speed, "events": events}
+        for event in self.events:
+            class_name = event.__class__.__name__
+            serialized_event = dataclasses.asdict(event)  # type: ignore[call-overload]
+            serialized_event["type"] = class_name
+            events.append(serialized_event)
+        return data
+
+    @classmethod
+    def deserialize(cls, data: dict) -> "Macro":
+        events = []
+        for event_data in data["events"]:
+            class_name = event_data.pop("type")
+            widget_spec_ = event_data.pop("widget_spec")
+            widget_spec = WidgetSpec(widget_spec_["widget_class"], widget_spec_["text"])
+            event_data["widget_spec"] = widget_spec
+            if "position" in event_data:
+                position_ = event_data.pop("position")
+                position = Position(
+                    position_["local_position"], position_["global_position"]
+                )
+                event_data["position"] = position
+            if "positions" in event_data:
+                positions_ = event_data.pop("positions")
+                positions = [
+                    Position(position_["local_position"], position_["global_position"])
+                    for position_ in positions_
+                ]
+                event_data["positions"] = positions
+
+            event_cls = globals()[class_name]
+            event = event_cls(**event_data)
+            events.append(event)
+        return cls(events, data["name"], data["speed"])

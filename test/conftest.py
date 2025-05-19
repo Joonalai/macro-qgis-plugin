@@ -33,6 +33,7 @@ from qgis.PyQt.QtWidgets import (
 
 from macro_test_utils import utils
 from macro_test_utils.utils import Dialog
+from qgis_macros.settings import Settings
 
 if TYPE_CHECKING:
     from pytestqt.qtbot import QtBot
@@ -40,6 +41,11 @@ if TYPE_CHECKING:
 LOGGER = logging.getLogger(__name__)
 
 WAIT_AFTER_MOUSE_MOVE = 1
+
+
+@pytest.fixture(autouse=True)
+def _reset_settings():
+    Settings.reset()
 
 
 @pytest.fixture

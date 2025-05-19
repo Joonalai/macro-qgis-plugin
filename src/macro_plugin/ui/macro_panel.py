@@ -15,24 +15,34 @@
 #
 #  You should have received a copy of the GNU General Public License
 #  along with macro-qgis-plugin. If not, see <https://www.gnu.org/licenses/>.
+import json
 from pathlib import Path
 from typing import Any, Optional
 
 from qgis.core import QgsApplication
 from qgis.gui import QgsDevToolWidget, QgsDevToolWidgetFactory
 from qgis.PyQt.QtWidgets import (
+    QFileDialog,
     QHeaderView,
     QInputDialog,
     QTableView,
     QToolButton,
     QWidget,
 )
+from qgis_plugin_tools.tools.decorations import log_if_fails
 from qgis_plugin_tools.tools.i18n import tr
+from qgis_plugin_tools.tools.messages import MsgBar
 from qgis_plugin_tools.tools.resources import load_ui_from_file
 
 from macro_plugin.ui.macro_model import MacroTableModel
 from macro_plugin.ui.settings_dialog import SettingsDialog
-from qgis_macros.macro_player import MacroPlayer
+from qgis_macros.exceptions import MacroPluginError
+from qgis_macros.macro import Macro
+from qgis_macros.macro_player import (
+    MacroPlaybackReport,
+    MacroPlaybackStatus,
+    MacroPlayer,
+)
 from qgis_macros.macro_recorder import MacroRecorder
 from qgis_macros.settings import Settings
 
@@ -54,6 +64,8 @@ class MacroPanel(UI_CLASS, QgsDevToolWidget):  # type: ignore
     button_record: QToolButton
     button_play: QToolButton
     button_delete: QToolButton
+    button_open: QToolButton
+    button_save: QToolButton
     button_settings: QToolButton
     table_view: QTableView
 
@@ -77,6 +89,8 @@ class MacroPanel(UI_CLASS, QgsDevToolWidget):  # type: ignore
         self._recorder.add_widget_to_filter_events_out(self.button_record)
 
         self._player = macro_player
+        self._player.playback_ended.connect(self._macro_playback_ended)
+
         self._model = MacroTableModel()
 
         self._configure_table()
@@ -108,6 +122,14 @@ class MacroPanel(UI_CLASS, QgsDevToolWidget):  # type: ignore
                 self._delete_macros,
                 "/mActionDeleteSelected.svg",
             ),
+            self.button_open: (
+                self._load_macros_from_file,
+                "/mActionFileOpen.svg",
+            ),
+            self.button_save: (
+                self._save_macros_to_file,
+                "/mActionFileSave.svg",
+            ),
             self.button_settings: (
                 self._open_settings,
                 "/console/iconSettingsConsole.svg",
@@ -134,7 +156,6 @@ class MacroPanel(UI_CLASS, QgsDevToolWidget):  # type: ignore
             )
             if ok:
                 macro.name = name
-                # TODO: save macro as serialized to settings as well
                 self._model.add_macro(macro)
         self._update_ui_state()
 
@@ -143,16 +164,24 @@ class MacroPanel(UI_CLASS, QgsDevToolWidget):  # type: ignore
             return
 
         macro = self._model.macros[self.table_view.selectedIndexes()[0].row()]
-        # TODO: make a setting to optionally profile
-        profiler = QgsApplication.profiler()
-        profile_macros = Settings.profile_macros.get()
-        if profile_macros:
-            profiler.start(f"Macro: {macro.name}", MACRO_GROUP)
-        try:
-            self._player.play(macro)
-        finally:
-            if profile_macros:
-                profiler.end(MACRO_GROUP)
+        if Settings.profile_macros.get():
+            QgsApplication.profiler().start(
+                f"Macro: {macro.name}", Settings.profile_macro_group.get()
+            )
+
+        self._player.play(macro)
+
+    @log_if_fails
+    def _macro_playback_ended(self, macro_report: MacroPlaybackReport) -> None:
+        if Settings.profile_macros.get():
+            QgsApplication.profiler().end(Settings.profile_macro_group.get())
+        if macro_report.status == MacroPlaybackStatus.FAILURE:
+            raise macro_report.error or MacroPluginError(
+                tr("Playback ended with failure.")
+            )
+        MsgBar.info(
+            tr("Macro playback ended"), tr("Macro playback ended successfully.")
+        )
 
     def _delete_macros(self) -> None:
         if not self._validate_macro_selection():
@@ -166,12 +195,50 @@ class MacroPanel(UI_CLASS, QgsDevToolWidget):  # type: ignore
         self._player.set_speed(Settings.speed.get())
         self._update_ui_state()
 
+    def _load_macros_from_file(self) -> None:
+        default_path = Path(Settings.macro_save_path.get())
+        default_path.mkdir(parents=True, exist_ok=True)
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            tr("Load Macros"),
+            str(default_path),
+            tr("Profiler Files (*.json);;All Files (*)"),
+        )
+        if file_path:
+            with Path(file_path).open("r") as path:
+                data = json.load(path)
+                macros = [Macro.deserialize(macro_data) for macro_data in data]
+                self._model.reset_macros(macros)
+
+    def _save_macros_to_file(self) -> None:
+        default_path = Path(Settings.macro_save_path.get())
+        default_path.mkdir(parents=True, exist_ok=True)
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            tr("Save Macros"),
+            str(default_path),
+            tr("Profiler Files (*.json);;All Files (*)"),
+        )
+        if file_path:
+            path = Path(file_path)
+            if not path.suffix:
+                path = path.with_name(path.name + ".json")
+                serialized_macros = [macro.serialize() for macro in self._model.macros]
+                with path.open("w") as f:
+                    json.dump(serialized_macros, f, indent=4)
+                MsgBar.info(
+                    tr("Macros saved"),
+                    tr("File saved to {}", str(path)),
+                    success=True,
+                )
+
     def _update_ui_state(self, *args: Any) -> None:
         """
         Updates the state of the UI components based on the current status.
         """
         self.button_record.setChecked(self._recorder.is_recording())
         self.button_play.setEnabled(len(self.table_view.selectedIndexes()) == 1)
+        self.button_save.setEnabled(bool(self._model.macros))
         self.button_delete.setEnabled(bool(self.table_view.selectedIndexes()))
 
 

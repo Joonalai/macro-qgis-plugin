@@ -44,10 +44,10 @@ def get_widget_text(widget: QWidget) -> str:
 
 
 def find_nearest_visible_children_of_type(
-    target_point: QPoint, parent_widget: QWidget, widget_type: type[QWidget]
+    target_point: QPoint, parent_widget: QWidget, widget_class: str
 ) -> Iterator[QWidget]:
     widgets = find_nearest_visible_children_with_threshold(target_point, parent_widget)
-    return (widget for widget in widgets if isinstance(widget, widget_type))
+    return (widget for widget in widgets if widget.__class__.__name__ == widget_class)
 
 
 def find_nearest_visible_children_with_threshold(

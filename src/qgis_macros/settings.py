@@ -22,6 +22,7 @@ from typing import Any, Optional, Union
 
 from qgis.PyQt.QtCore import QObject, pyqtSignal
 from qgis_plugin_tools.tools.i18n import tr
+from qgis_plugin_tools.tools.resources import profile_path
 from qgis_plugin_tools.tools.settings import (
     get_setting,
     set_setting,
@@ -95,6 +96,14 @@ class Settings(enum.Enum):
     profile_macros = Setting(
         description=tr("Profile macro runtime"),
         default=False,
+    )
+    profile_macro_group = Setting(
+        description=tr("Group name for macro profiles"),
+        default="Macro",
+    )
+    macro_save_path = Setting(
+        description=tr("Default save path for macros."),
+        default=profile_path("macros"),
     )
 
     @staticmethod

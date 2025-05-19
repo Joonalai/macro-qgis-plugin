@@ -24,7 +24,7 @@ from qgis.core import QgsFeature
 from qgis.gui import QgsMapToolDigitizeFeature
 
 from macro_test_utils.utils import WidgetEventListener
-from qgis_macros.exceptions import WidgetNotFoundError
+from qgis_macros.exceptions import MacroPlaybackEndedError
 from qgis_macros.macro import (
     Macro,
     WidgetSpec,
@@ -133,7 +133,7 @@ def test_macro_player_should_raise_if_widget_not_found(
 
     report = blocker.args[0]
     assert report.status == MacroPlaybackStatus.FAILURE
-    assert isinstance(report.error, WidgetNotFoundError)
+    assert isinstance(report.error, MacroPlaybackEndedError)
 
 
 def test_macro_player_should_click_moved_button(

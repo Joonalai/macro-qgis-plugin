@@ -44,6 +44,11 @@ class MacroTableModel(QAbstractTableModel):
         self.macros.pop(row)
         self.endRemoveRows()
 
+    def reset_macros(self, macros: list[Macro]) -> None:
+        self.beginResetModel()
+        self.macros = macros
+        self.endResetModel()
+
     def rowCount(self, parent: QModelIndex) -> int:  # noqa: N802
         valid = parent.isValid()
         return 0 if valid else len(self.macros)

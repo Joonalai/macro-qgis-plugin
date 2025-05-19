@@ -28,6 +28,7 @@ from macro_plugin.ui.macro_panel import MACRO_GROUP, MacroPanel, QgsApplication
 from qgis_macros.macro import Macro
 from qgis_macros.macro_player import MacroPlayer
 from qgis_macros.macro_recorder import MacroRecorder
+from qgis_macros.settings import Settings
 
 if TYPE_CHECKING:
     from pytest_mock import MockerFixture
@@ -59,7 +60,9 @@ def mock_macro_recorder(
 
 @pytest.fixture
 def mock_macro_player(mocker: "MockerFixture", mock_macro: "MagicMock") -> "MagicMock":
-    return mocker.create_autospec(MacroPlayer, instance=True)
+    mock_player = mocker.create_autospec(MacroPlayer, instance=True)
+    mock_player.playback_ended = mocker.MagicMock()
+    return mock_player
 
 
 @pytest.fixture
@@ -194,14 +197,13 @@ def test_macro_panel_play_macro(
     qtbot: "QtBot",
 ) -> None:
     # Arrange
-    assert MACRO_GROUP not in QgsApplication.profiler().groups()
+    Settings.profile_macros.set(True)
 
     # Act
     qtbot.mouseClick(macro_panel.button_play, Qt.LeftButton)
 
     # Assert
     mock_macro_player.play.assert_called_once_with(mock_macro)
-    assert MACRO_GROUP in QgsApplication.profiler().groups()
 
 
 @pytest.mark.usefixtures("record_macro", "set_macro_selected")

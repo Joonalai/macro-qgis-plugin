@@ -20,3 +20,4 @@ qtbot
 subtests
 metaclass
 viewport
+globals
