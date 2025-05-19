@@ -31,8 +31,10 @@ from qgis_plugin_tools.tools.i18n import tr
 from qgis_plugin_tools.tools.resources import load_ui_from_file
 
 from macro_plugin.ui.macro_model import MacroTableModel
+from macro_plugin.ui.settings_dialog import SettingsDialog
 from qgis_macros.macro_player import MacroPlayer
 from qgis_macros.macro_recorder import MacroRecorder
+from qgis_macros.settings import Settings
 
 MACRO_GROUP = "Macro"
 
@@ -52,6 +54,7 @@ class MacroPanel(UI_CLASS, QgsDevToolWidget):  # type: ignore
     button_record: QToolButton
     button_play: QToolButton
     button_delete: QToolButton
+    button_settings: QToolButton
     table_view: QTableView
 
     def __init__(
@@ -105,6 +108,10 @@ class MacroPanel(UI_CLASS, QgsDevToolWidget):  # type: ignore
                 self._delete_macros,
                 "/mActionDeleteSelected.svg",
             ),
+            self.button_settings: (
+                self._open_settings,
+                "/console/iconSettingsConsole.svg",
+            ),
         }
 
         for button, (action, icon) in button_config.items():
@@ -138,17 +145,25 @@ class MacroPanel(UI_CLASS, QgsDevToolWidget):  # type: ignore
         macro = self._model.macros[self.table_view.selectedIndexes()[0].row()]
         # TODO: make a setting to optionally profile
         profiler = QgsApplication.profiler()
-        profiler.start(f"Macro: {macro.name}", MACRO_GROUP)
+        profile_macros = Settings.profile_macros.get()
+        if profile_macros:
+            profiler.start(f"Macro: {macro.name}", MACRO_GROUP)
         try:
             self._player.play(macro)
         finally:
-            profiler.end(MACRO_GROUP)
+            if profile_macros:
+                profiler.end(MACRO_GROUP)
 
     def _delete_macros(self) -> None:
         if not self._validate_macro_selection():
             return
         for index in reversed(self.table_view.selectedIndexes()):
             self._model.remove_macro(index.row())
+        self._update_ui_state()
+
+    def _open_settings(self) -> None:
+        SettingsDialog().exec()
+        self._player.set_speed(Settings.speed.get())
         self._update_ui_state()
 
     def _update_ui_state(self, *args: Any) -> None:
@@ -175,4 +190,4 @@ class MacroToolFactory(QgsDevToolWidgetFactory):
         )
 
     def createWidget(self, parent: Optional[QWidget] = None) -> MacroPanel:  # noqa: N802
-        return MacroPanel(MacroRecorder(), MacroPlayer(), parent)
+        return MacroPanel(MacroRecorder(), MacroPlayer(Settings.speed.get()), parent)

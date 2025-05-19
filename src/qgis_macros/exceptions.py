@@ -40,3 +40,10 @@ class WidgetNotFoundError(MacroPluginError):
         widget_text += text
 
         super().__init__(tr("Widget {} not found.", widget_text))
+
+
+class InvalidSettingValueError(MacroPluginError):
+    def __init__(self, setting_name: str, setting_value: str) -> None:
+        super().__init__(
+            tr("Invalid value for {} setting: {}", setting_name, setting_value)
+        )

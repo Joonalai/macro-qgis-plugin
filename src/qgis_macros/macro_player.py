@@ -62,6 +62,10 @@ class MacroPlayer(QObject):
         self._playback_halted = False
         self._event_queue: list[MacroEvent] = []
 
+    def set_speed(self, speed: float) -> None:
+        """Set the playback speed."""
+        self._speed = speed
+
     def play(self, macro: Macro) -> None:
         """Play back the recorded events asynchronously."""
         self._playback_halted = False
