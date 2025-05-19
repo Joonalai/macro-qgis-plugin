@@ -27,7 +27,13 @@ from qgis_macros.macro import (
     Macro,
     WidgetSpec,
 )
-from qgis_macros.macro_player import MacroPlayer
+from qgis_macros.macro_player import (
+    MacroPlaybackReport,
+    MacroPlaybackStatus,
+    MacroPlayer,
+)
+
+TIMEOUT = 1000
 
 WAIT_MS = 5
 
@@ -40,6 +46,14 @@ if TYPE_CHECKING:
 pytest_plugins = [
     "macro_test_utils.macro_fixture",
 ]
+
+
+def _check_successfull(playback_report: MacroPlaybackReport):
+    assert playback_report.status == MacroPlaybackStatus.SUCCESS
+    return True
+
+
+checkers = [_check_successfull, None]
 
 
 @pytest.fixture
@@ -62,7 +76,11 @@ def test_macro_player_should_click_button(
     dialog: "Dialog",
     qtbot: "QtBot",
 ):
-    with qtbot.waitSignal(dialog.button.clicked, timeout=1000):
+    with qtbot.waitSignals(
+        [macro_player.playback_ended, dialog.button.clicked],
+        check_params_cbs=checkers,
+        timeout=TIMEOUT,
+    ):
         macro_player.play(button_click_macro)
 
 
@@ -73,7 +91,11 @@ def test_macro_player_should_click_radio_button(
     qtbot: "QtBot",
 ):
     assert not dialog.radio_button.isChecked()
-    with qtbot.waitSignal(dialog.radio_button.clicked, timeout=1000):
+    with qtbot.waitSignals(
+        [macro_player.playback_ended, dialog.radio_button.clicked],
+        check_params_cbs=checkers,
+        timeout=TIMEOUT,
+    ):
         macro_player.play(radio_button_click_macro)
     assert dialog.radio_button.isChecked()
 
@@ -85,7 +107,11 @@ def test_macro_player_should_click_check_button(
     qtbot: "QtBot",
 ):
     assert not dialog.check_box.isChecked()
-    with qtbot.waitSignal(dialog.check_box.clicked, timeout=1000):
+    with qtbot.waitSignals(
+        [macro_player.playback_ended, dialog.check_box.clicked],
+        check_params_cbs=checkers,
+        timeout=TIMEOUT,
+    ):
         macro_player.play(check_box_click_macro)
     assert dialog.check_box.isChecked()
 
@@ -94,13 +120,18 @@ def test_macro_player_should_raise_if_widget_not_found(
     button_click_macro: Macro,
     macro_player: MacroPlayer,
     dialog: "Dialog",
+    qtbot: "QtBot",
 ):
     # Arrange
     dialog.close()
 
     # Act and assert
-    with pytest.raises(WidgetNotFoundError):
+    with qtbot.waitSignal(macro_player.playback_ended, timeout=TIMEOUT) as blocker:
         macro_player.play(button_click_macro)
+
+    report = blocker.args[0]
+    assert report.status == MacroPlaybackStatus.FAILURE
+    assert isinstance(report.error, WidgetNotFoundError)
 
 
 def test_macro_player_should_click_moved_button(
@@ -117,10 +148,28 @@ def test_macro_player_should_click_moved_button(
     spy_get_suitable_widget = mocker.spy(WidgetSpec, "get_suitable_widget")
 
     # Act and assert
-    with qtbot.waitSignal(dialog.button.clicked, timeout=10):
+    with qtbot.waitSignals(
+        [macro_player.playback_ended, dialog.button.clicked],
+        check_params_cbs=checkers,
+        timeout=TIMEOUT,
+    ):
         macro_player.play(button_click_macro)
 
     assert spy_get_suitable_widget.call_count == 3
+
+
+def test_macro_player_should_menu_action(
+    menu_action_click_macro: Macro,
+    macro_player: MacroPlayer,
+    dialog: "Dialog",
+    qtbot: "QtBot",
+):
+    with qtbot.waitSignals(
+        [macro_player.playback_ended, dialog.action2.triggered],
+        check_params_cbs=checkers,
+        timeout=TIMEOUT,
+    ):
+        macro_player.play(menu_action_click_macro)
 
 
 def test_macro_player_should_click_list_widget_item(
@@ -130,7 +179,11 @@ def test_macro_player_should_click_list_widget_item(
     qtbot: "QtBot",
 ):
     assert dialog.list_widget.selectedItems() == []
-    with qtbot.waitSignal(dialog.list_widget.clicked, timeout=10):
+    with qtbot.waitSignals(
+        [macro_player.playback_ended, dialog.list_widget.clicked],
+        check_params_cbs=checkers,
+        timeout=TIMEOUT,
+    ):
         macro_player.play(list_view_item_click_macro)
     assert dialog.list_widget.selectedItems() == [dialog.list_widget.item(1)]
 
@@ -142,7 +195,11 @@ def test_macro_player_should_click_combobox_item(
     qtbot: "QtBot",
 ):
     assert dialog.combobox.currentIndex() == 0
-    with qtbot.waitSignal(dialog.combobox.currentIndexChanged, timeout=10):
+    with qtbot.waitSignals(
+        [macro_player.playback_ended, dialog.combobox.currentIndexChanged],
+        check_params_cbs=checkers,
+        timeout=TIMEOUT,
+    ):
         macro_player.play(combobox_item_click_macro)
     assert dialog.combobox.currentIndex() == 1
 
@@ -158,7 +215,11 @@ def test_macro_player_play_button_double_click_macro(
     widget_listener.start_listening(dialog.button)
 
     # Act and assert
-    with qtbot.waitSignal(widget_listener.double_clicked, timeout=10):
+    with qtbot.waitSignals(
+        [macro_player.playback_ended, widget_listener.double_clicked],
+        check_params_cbs=checkers,
+        timeout=TIMEOUT,
+    ):
         macro_player.play(button_double_click_macro)
 
 
@@ -169,6 +230,10 @@ def test_macro_player_play_line_edit_macro(
     widget_listener: WidgetEventListener,
     qtbot: "QtBot",
 ):
-    with qtbot.waitSignal(dialog.line_edit.textEdited, timeout=10):
+    with qtbot.waitSignals(
+        [macro_player.playback_ended, dialog.line_edit.textEdited],
+        check_params_cbs=checkers,
+        timeout=TIMEOUT,
+    ):
         macro_player.play(line_edit_macro)
     assert dialog.line_edit.text() == "a"

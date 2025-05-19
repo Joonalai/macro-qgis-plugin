@@ -24,11 +24,14 @@ from typing import TYPE_CHECKING, Optional
 from qgis.core import QgsApplication
 from qgis.PyQt.QtCore import QEvent, QObject, QPoint, pyqtSignal
 from qgis.PyQt.QtWidgets import (
+    QAction,
     QCheckBox,
     QComboBox,
     QDialog,
+    QHBoxLayout,
     QLineEdit,
     QListWidget,
+    QMenu,
     QPushButton,
     QRadioButton,
     QVBoxLayout,
@@ -58,6 +61,19 @@ class Dialog(QDialog):
         self.list_widget = QListWidget()
         self.list_widget.addItems(["List Item 1", "List Item 2", "List Item 3"])
 
+        self.menu_button = QPushButton("Menu")
+        self.menu = QMenu(self.menu_button)
+        self.action1 = QAction("Action 1", self)
+        self.action2 = QAction("Action 2", self)
+        self.menu.addAction(self.action1)
+        self.menu.addAction(self.action2)
+        self.menu_button.setMenu(self.menu)
+
+        menu_layout = QHBoxLayout()
+        menu_layout.addWidget(self.menu_button)
+        menu_layout.addStretch()
+
+        layout.addLayout(menu_layout)
         layout.addWidget(self.button)
         layout.addWidget(self.button2)
         layout.addWidget(self.combobox)

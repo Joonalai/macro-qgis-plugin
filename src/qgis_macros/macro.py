@@ -19,7 +19,7 @@
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Optional, Protocol, Union
+from typing import Callable, Optional, Protocol, Union
 
 from qgis.core import QgsApplication
 from qgis.PyQt.QtCore import QEvent, QPoint, Qt
@@ -65,7 +65,7 @@ class WidgetSpec:
                 break
         if level < MAXIMUM_PARENT_DEPTH and (parent := widget.parent()) is not None:
             return self.get_suitable_widget(point, parent, level + 1)
-        raise WidgetNotFoundError
+        raise WidgetNotFoundError(self.widget_type, self.text)
 
 
 class MacroEvent(Protocol):
@@ -73,7 +73,7 @@ class MacroEvent(Protocol):
 
     ms_since_last_event: int
 
-    def perform_event_action(self) -> None:
+    def perform_event_action(self, schedule_next: Callable[[], None]) -> None:
         """
         Perform macro event action (e.g., moving mouse, clicking widget)
         """
@@ -132,7 +132,9 @@ class BaseMacroEvent(ABC):
         global_point = position.global_point
         widget = QApplication.widgetAt(global_point)
         if not widget:
-            raise WidgetNotFoundError
+            raise WidgetNotFoundError(
+                self.widget_spec.widget_type, self.widget_spec.text
+            )
         if not self.widget_spec.matches(widget):
             # Sometimes dialogs might appear in a slightly different position
             widget = self.widget_spec.get_suitable_widget(global_point, widget.parent())
@@ -147,7 +149,7 @@ class BaseMacroEvent(ABC):
         return widget, corrected_position
 
     @abstractmethod
-    def perform_event_action(self) -> None: ...
+    def perform_event_action(self, schedule_next: Callable[[], None]) -> None: ...
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, BaseMacroEvent):
@@ -165,10 +167,11 @@ class MacroKeyEvent(BaseMacroEvent):
     is_release: bool = False
     modifiers: int = Qt.NoModifier
 
-    def perform_event_action(self) -> None:
+    def perform_event_action(self, schedule_next: Callable[[], None]) -> None:
         widget = QApplication.focusWidget()
         QgsApplication.processEvents()
         # TODO: shift is not working
+        schedule_next()
         if not self.is_release:
             QTest.keyPress(
                 widget, Qt.Key(self.key), Qt.KeyboardModifiers(self.modifiers)
@@ -200,9 +203,11 @@ class MacroMouseMoveEvent(BaseMacroEvent):
             return
         self.positions.append(position)
 
-    def perform_event_action(self) -> None:
+    def perform_event_action(self, schedule_next: Callable[[], None]) -> None:
         if self.buttons != Qt.NoButton:
-            return self.perform_event_action_with_event()
+            self.perform_event_action_with_event()
+            schedule_next()
+            return
 
         if not self.positions:
             return None
@@ -210,6 +215,7 @@ class MacroMouseMoveEvent(BaseMacroEvent):
 
         for position in self.positions:
             self.move_cursor(position.widget_corrected_position(widget).global_point)
+        schedule_next()
         return None
 
     def perform_event_action_with_event(self) -> None:
@@ -261,11 +267,12 @@ class MacroMouseEvent(BaseMacroEvent):
     button: int = Qt.LeftButton
     modifiers: int = Qt.NoModifier
 
-    def perform_event_action(self) -> None:
+    def perform_event_action(self, schedule_next: Callable[[], None]) -> None:
         widget, corrected_position = self.get_widget_and_corrected_position(
             self.position
         )
         self.move_cursor(corrected_position.global_point)
+        schedule_next()
         if not self.is_release:
             # Ensure the widget under the mouse cursor is focused
             QTest.mousePress(
@@ -299,11 +306,12 @@ class MacroMouseDoubleClickEvent(BaseMacroEvent):
     button: int = Qt.LeftButton
     modifiers: int = Qt.NoModifier
 
-    def perform_event_action(self) -> None:
+    def perform_event_action(self, schedule_next: Callable[[], None]) -> None:
         widget, corrected_position = self.get_widget_and_corrected_position(
             self.position
         )
         self.move_cursor(corrected_position.global_point)
+        schedule_next()
         QTest.mouseDClick(
             widget,
             Qt.MouseButton(self.button),

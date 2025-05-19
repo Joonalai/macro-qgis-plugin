@@ -80,6 +80,24 @@ def line_edit_click_macro_event(
 
 
 @pytest.fixture
+def menu_action_click_macro_event(
+    dialog: Dialog,
+    dialog_widget_positions: dict[str, WidgetInfo],
+) -> list[MacroEvent]:
+    menu_button = dialog_widget_positions["menu_button"]
+    menu = dialog_widget_positions["menu"]
+    point = dialog.menu.actionGeometry(dialog.action2).center()
+
+    position = Position.from_points(point, dialog.menu_button.mapToGlobal(point))
+    return [
+        macro_utils.mouse_move_macro_event(menu_button),
+        *macro_utils.widget_clicking_macro_events(menu_button),
+        macro_utils.mouse_move_macro_event(menu, positions=[position]),
+        *macro_utils.widget_clicking_macro_events(menu, position=position),
+    ]
+
+
+@pytest.fixture
 def list_item_click_macro_event(
     dialog: Dialog,
     dialog_widget_positions: dict[str, WidgetInfo],
@@ -156,6 +174,13 @@ def line_edit_macro(
     line_edit_key_macro_event: list[MacroEvent],
 ) -> Macro:
     return Macro(events=[*line_edit_click_macro_event, *line_edit_key_macro_event])
+
+
+@pytest.fixture
+def menu_action_click_macro(
+    menu_action_click_macro_event: list[MacroEvent],
+) -> Macro:
+    return Macro(events=menu_action_click_macro_event)
 
 
 @pytest.fixture
