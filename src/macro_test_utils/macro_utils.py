@@ -39,6 +39,7 @@ def widget_clicking_macro_events(
     position: Optional[Position] = None,
     elapsed: tuple[int, int] = (0, 0),
     modifiers: int = Qt.NoModifier,
+    button: int = Qt.LeftButton,
 ) -> list[MacroEvent]:
     position = position if position else widget.position
     return [
@@ -46,12 +47,14 @@ def widget_clicking_macro_events(
             widget_spec=widget.widget_spec,
             ms_since_last_event=elapsed[0],
             position=position,
+            button=button,
             modifiers=modifiers,
         ),
         MacroMouseEvent(
             widget_spec=widget.widget_spec,
             ms_since_last_event=elapsed[1],
             position=position,
+            button=button,
             is_release=True,
             modifiers=modifiers,
         ),

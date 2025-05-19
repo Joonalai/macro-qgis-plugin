@@ -20,6 +20,8 @@ from collections.abc import Iterator
 from typing import TYPE_CHECKING
 
 import pytest
+from qgis.core import QgsFeature
+from qgis.gui import QgsMapToolDigitizeFeature
 
 from macro_test_utils.utils import WidgetEventListener
 from qgis_macros.exceptions import WidgetNotFoundError
@@ -237,3 +239,21 @@ def test_macro_player_play_line_edit_macro(
     ):
         macro_player.play(line_edit_macro)
     assert dialog.line_edit.text() == "a"
+
+
+@pytest.mark.skip("Causes segmentation faults in CI")
+@pytest.mark.usefixtures("digitize_feature_map_tool", "empty_layer")
+@pytest.mark.qgis_show_map(timeout=0)
+def test_macro_recorder_should_record_digitizing_polygon(
+    macro_player: MacroPlayer,
+    digitize_polygon_macro: Macro,
+    qtbot: "QtBot",
+    digitize_feature_map_tool: QgsMapToolDigitizeFeature,
+):
+    with qtbot.waitSignal(digitize_feature_map_tool.digitizingCompleted) as blocker:
+        macro_player.play(digitize_polygon_macro)
+    feature = blocker.args[0]
+    assert isinstance(feature, QgsFeature)
+    assert feature.isValid()
+    # Asserting geometry causes segfault
+    # assert feature.geometry()

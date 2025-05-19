@@ -20,10 +20,18 @@ from collections.abc import Iterator
 from typing import TYPE_CHECKING
 
 import pytest
-from qgis.PyQt.QtCore import Qt
+from qgis.core import (
+    QgsFeature,
+)
+from qgis.gui import (
+    QgsMapCanvas,
+    QgsMapToolDigitizeFeature,
+)
+from qgis.PyQt.QtCore import QPoint, Qt
 
 from macro_test_utils import macro_utils
 from macro_test_utils.utils import Dialog, WidgetInfo
+from qgis_macros.macro import Position
 from qgis_macros.macro_recorder import MacroRecorder
 
 if TYPE_CHECKING:
@@ -88,7 +96,9 @@ def test_macro_recorder_should_record_button_clicking_macro(
 
     # Assert
     assert macro.events == list(
-        macro_utils.widget_clicking_macro_events(button, (0, 0), int(modifier))
+        macro_utils.widget_clicking_macro_events(
+            button, button.position, modifiers=int(modifier)
+        )
     )
 
 
@@ -182,4 +192,55 @@ def test_macro_recorder_should_record_key_clicking_macro(
         macro_utils.mouse_move_macro_event(line_edit),
         *macro_utils.widget_clicking_macro_events(line_edit),
         *macro_utils.key_macro_events(line_edit, Qt.Key_A, modifiers=modifier),
+    ]
+
+
+@pytest.mark.usefixtures("digitize_feature_map_tool", "empty_layer")
+@pytest.mark.qgis_show_map(timeout=0)
+@pytest.mark.timeout(60)
+def test_macro_recorder_should_record_digitizing_polygon(
+    macro_recorder: MacroRecorder,
+    #     dialog: Dialog,
+    qtbot: "QtBot",
+    digitize_feature_map_tool: QgsMapToolDigitizeFeature,
+    qgis_canvas: QgsMapCanvas,
+):
+    # Arrange
+    canvas = WidgetInfo.from_widget("viewport", qgis_canvas.viewport())
+    initial_position = canvas.position
+    second_point = QPoint(
+        initial_position.local_point.x(), initial_position.local_point.y() + 3
+    )
+    third_point = QPoint(
+        initial_position.local_point.x() + 3, initial_position.local_point.y() + 3
+    )
+    second_position = Position.from_points(
+        second_point, canvas.widget.mapToGlobal(second_point)
+    )
+    third_position = Position.from_points(
+        third_point, canvas.widget.mapToGlobal(third_point)
+    )
+
+    # Act
+    qtbot.mouseClick(canvas.widget, Qt.LeftButton, pos=initial_position.local_point)
+    qtbot.mouseMove(canvas.widget, pos=second_point)
+    qtbot.mouseClick(canvas.widget, Qt.LeftButton, pos=second_point)
+    qtbot.mouseMove(canvas.widget, pos=third_point)
+    qtbot.mouseClick(canvas.widget, Qt.LeftButton, pos=third_point)
+    with qtbot.waitSignal(digitize_feature_map_tool.digitizingCompleted) as blocker:
+        qtbot.mouseClick(
+            canvas.widget, Qt.RightButton, pos=initial_position.local_point
+        )
+    assert isinstance(blocker.args[0], QgsFeature)
+
+    macro = macro_recorder.stop_recording()
+    assert macro.events == [
+        *macro_utils.widget_clicking_macro_events(canvas, initial_position),
+        macro_utils.mouse_move_macro_event(canvas, [second_position]),
+        *macro_utils.widget_clicking_macro_events(canvas, second_position),
+        macro_utils.mouse_move_macro_event(canvas, [third_position]),
+        *macro_utils.widget_clicking_macro_events(canvas, third_position),
+        *macro_utils.widget_clicking_macro_events(
+            canvas, initial_position, button=Qt.RightButton
+        ),
     ]

@@ -16,12 +16,17 @@
 #  You should have received a copy of the GNU General Public License
 #  along with macro-qgis-plugin. If not, see <https://www.gnu.org/licenses/>.
 
+from typing import TYPE_CHECKING
+
 import pytest
 from qgis.PyQt.QtCore import QPoint, Qt
 
 from macro_test_utils import macro_utils
 from macro_test_utils.utils import Dialog, WidgetInfo
 from qgis_macros.macro import Macro, MacroEvent, Position
+
+if TYPE_CHECKING:
+    from qgis.gui import QgsMapCanvas
 
 
 @pytest.fixture
@@ -195,3 +200,33 @@ def combobox_item_click_macro(
     combobox_item_click_macro_event: list[MacroEvent],
 ) -> Macro:
     return Macro(events=combobox_item_click_macro_event)
+
+
+@pytest.fixture
+def digitize_polygon_macro(qgis_canvas: "QgsMapCanvas") -> Macro:
+    canvas = WidgetInfo.from_widget("viewport", qgis_canvas.viewport())
+    initial_position = canvas.position
+    second_point = QPoint(
+        initial_position.local_point.x(), initial_position.local_point.y() + 3
+    )
+    third_point = QPoint(
+        initial_position.local_point.x() + 3, initial_position.local_point.y() + 3
+    )
+    second_position = Position.from_points(
+        second_point, canvas.widget.mapToGlobal(second_point)
+    )
+    third_position = Position.from_points(
+        third_point, canvas.widget.mapToGlobal(third_point)
+    )
+    return Macro(
+        events=[
+            *macro_utils.widget_clicking_macro_events(canvas, initial_position),
+            macro_utils.mouse_move_macro_event(canvas, [second_position]),
+            *macro_utils.widget_clicking_macro_events(canvas, second_position),
+            macro_utils.mouse_move_macro_event(canvas, [third_position]),
+            *macro_utils.widget_clicking_macro_events(canvas, third_position),
+            *macro_utils.widget_clicking_macro_events(
+                canvas, initial_position, button=Qt.RightButton
+            ),
+        ],
+    )

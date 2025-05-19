@@ -19,6 +19,13 @@ import logging
 from typing import TYPE_CHECKING
 
 import pytest
+from qgis.core import QgsGeometry, QgsProject, QgsVectorLayer, QgsVectorLayerUtils
+from qgis.gui import (
+    QgisInterface,
+    QgsAdvancedDigitizingDockWidget,
+    QgsMapCanvas,
+    QgsMapToolDigitizeFeature,
+)
 from qgis.PyQt.QtGui import QCursor
 from qgis.PyQt.QtWidgets import (
     QWidget,
@@ -66,3 +73,27 @@ def dialog_widget_positions(dialog: Dialog) -> dict[str, utils.WidgetInfo]:
     )
 
     return widgets
+
+
+@pytest.fixture
+def empty_layer(qgis_iface: "QgisInterface") -> QgsVectorLayer:
+    layer = QgsVectorLayer("Polygon?crs=EPSG:3067", "empty", "memory")
+    wkt = "POLYGON((10 10 0, 10 20 0, 20 20 0, 20 10 0, 10 10 0))"
+    temp_feature = QgsVectorLayerUtils.createFeature(
+        layer, QgsGeometry.fromWkt(wkt), {}
+    )
+    layer.dataProvider().addFeatures([temp_feature])
+    QgsProject.instance().addMapLayer(layer)
+    qgis_iface.setActiveLayer(layer)
+    layer.startEditing()
+    return layer
+
+
+@pytest.fixture
+def digitize_feature_map_tool(qgis_canvas: QgsMapCanvas, empty_layer: QgsVectorLayer):
+    cad_dock = QgsAdvancedDigitizingDockWidget(qgis_canvas)
+    tool = QgsMapToolDigitizeFeature(qgis_canvas, cad_dock)
+    tool.setLayer(empty_layer)
+    qgis_canvas.setMapTool(tool)
+    yield tool
+    qgis_canvas.unsetMapTool(tool)

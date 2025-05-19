@@ -31,7 +31,6 @@ from qgis_macros import utils
 from qgis_macros.constants import (
     MAXIMUM_NEAREST_CANDIDATES,
     MAXIMUM_PARENT_DEPTH,
-    MS_EPSILON,
 )
 from qgis_macros.exceptions import WidgetNotFoundError
 
@@ -155,10 +154,7 @@ class BaseMacroEvent(ABC):
         if not isinstance(other, BaseMacroEvent):
             return NotImplemented
 
-        return (
-            self.widget_spec == other.widget_spec
-            and abs(self.ms_since_last_event - other.ms_since_last_event) < MS_EPSILON
-        )
+        return self.widget_spec == other.widget_spec
 
 
 @dataclass
