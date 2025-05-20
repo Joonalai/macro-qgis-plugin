@@ -21,7 +21,6 @@ from qgis.PyQt.QtCore import QElapsedTimer, QEvent, QObject
 from qgis.PyQt.QtGui import QKeyEvent, QMouseEvent
 from qgis.PyQt.QtWidgets import QApplication, QWidget
 
-from qgis_macros import utils
 from qgis_macros.macro import (
     LOGGER,
     Macro,
@@ -114,8 +113,7 @@ class MacroRecorder(QObject):
             self._record_mouse_button_double_click_event(
                 event, widget, ms_since_last_event
             )
-        # Mouse move over map canvas
-        elif event.type() == QEvent.MouseMove and utils.is_object_map_canvas(obj):
+        elif event.type() == QEvent.MouseMove:
             self._record_mouse_move_event(event, widget)
 
         return super().eventFilter(obj, event)
@@ -126,7 +124,7 @@ class MacroRecorder(QObject):
         if not self._recorded_events:
             return []
 
-        # Take just the last mouse position
+        # Take just the last mouse position for the first element
         first_element = self._recorded_events[0]
         if isinstance(first_element, MacroMouseMoveEvent):
             first_index = 1
@@ -140,7 +138,11 @@ class MacroRecorder(QObject):
         else:
             first_index = 0
 
-        filtered_events.extend(self._recorded_events[first_index:])
+        last_index = len(self._recorded_events) - 1
+        if isinstance(self._recorded_events[last_index], MacroMouseMoveEvent):
+            last_index -= 1
+
+        filtered_events.extend(self._recorded_events[first_index : last_index + 1])
 
         return filtered_events
 
