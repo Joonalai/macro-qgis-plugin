@@ -32,6 +32,7 @@ from qgis_macros.macro import (
     Position,
     WidgetSpec,
 )
+from qgis_macros.settings import Settings
 
 
 class MacroRecorder(QObject):
@@ -143,6 +144,15 @@ class MacroRecorder(QObject):
             last_index -= 1
 
         filtered_events.extend(self._recorded_events[first_index : last_index + 1])
+
+        point_count = Settings.move_event_interpolation_count.get()
+
+        for event in filtered_events:
+            if (
+                isinstance(event, MacroMouseMoveEvent)
+                and len(event.positions) > point_count
+            ):
+                event.interpolate_positions(point_count)
 
         return filtered_events
 

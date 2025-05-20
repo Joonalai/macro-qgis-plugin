@@ -105,6 +105,15 @@ class Settings(enum.Enum):
         description=tr("Default save path for macros."),
         default=profile_path("macros"),
     )
+    move_event_interpolation_count = Setting(
+        description=tr(
+            "How many points mouse move events should have. "
+            "If point count is higher, "
+            "points are interpolated along the line."
+        ),
+        default=4,
+        widget_config=WidgetConfig(minimum=2, maximum=10000),
+    )
 
     @staticmethod
     def reset() -> None:

@@ -21,7 +21,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Callable, Optional, Protocol, Union
 
-from qgis.core import QgsApplication
+from qgis.core import QgsApplication, QgsLineString
 from qgis.PyQt.QtCore import QEvent, QPoint, Qt
 from qgis.PyQt.QtGui import QCursor, QMouseEvent
 from qgis.PyQt.QtTest import QTest
@@ -98,6 +98,35 @@ class Position:
             (local_point.x(), local_point.y()),
             (global_point.x(), global_point.y()),
         )
+
+    @staticmethod
+    def interpolate(
+        positions: list["Position"], number_of_positions: int
+    ) -> list["Position"]:
+        if len(positions) <= number_of_positions:
+            return positions
+
+        def _interpolate(points: list[tuple[int, int]]) -> list[tuple[int, int]]:
+            x, y = list(zip(*points))
+            line = QgsLineString(x, y)
+            distance = line.length() / (number_of_positions - 1)
+            interpolated_points = [
+                line.interpolatePoint(point_distance)
+                for point_distance in [
+                    distance * i for i in range(1, number_of_positions - 1)
+                ]
+            ]
+            interpolated_points = [
+                (int(point.x()), int(point.y())) for point in interpolated_points
+            ]
+            return [points[0], *interpolated_points, points[-1]]
+
+        local_positions = _interpolate([pos.local_position for pos in positions])
+        global_positions = _interpolate([pos.global_position for pos in positions])
+        return [
+            Position(local_point, global_point)
+            for local_point, global_point in zip(local_positions, global_positions)
+        ]
 
     @property
     def local_point(self) -> QPoint:
@@ -207,13 +236,13 @@ class MacroMouseMoveEvent(BaseMacroEvent):
             return
 
         if not self.positions:
-            return None
+            return
         widget = self.get_widget(self.positions[0])
 
         for position in self.positions:
             self.move_cursor(position.widget_corrected_position(widget).global_point)
         schedule_next()
-        return None
+        return
 
     def perform_event_action_with_event(self) -> None:
         if not self.positions:
@@ -233,6 +262,9 @@ class MacroMouseMoveEvent(BaseMacroEvent):
             )
             QApplication.postEvent(widget, event)
             QApplication.processEvents()
+
+    def interpolate_positions(self, number_of_positions: int) -> None:
+        self.positions = Position.interpolate(self.positions, number_of_positions)
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, MacroMouseMoveEvent):
