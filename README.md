@@ -18,11 +18,10 @@ dock widget with macro panel to allow user to record simple macros
 ## Installation
 
 1. Clone the repository from GitHub.
-2. Install requirements (in a venv): `pip install -r requirements.txt`
-3. Install the repo (not editable): `pip install .`
-4. Build a package: `qpdt b`
-5. Open QGIS and navigate to `Plugins > Manage and Install Plugins`.
-6. Click the `Install from ZIP` option and install the packaged plugin zip.
+2. Install requirements (in a venv created with --system-site-packages): `[uv] sync`
+3. Build a package: `qpdt b`
+4. Open QGIS and navigate to `Plugins > Manage and Install Plugins`.
+5. Click the `Install from ZIP` option and install the packaged plugin zip.
 
 ## Usage
 
@@ -53,3 +52,5 @@ These awesome plugins are used as an inspiration for the plugin structure:
 Licensed under GNU GPL v3.0.
 
 Copyright (C) 2025 macro-qgis-plugin contributors.
+
+[uv](https://docs.astral.sh/uv/getting-started/installation/)
