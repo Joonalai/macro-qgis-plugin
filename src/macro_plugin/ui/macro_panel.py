@@ -223,14 +223,14 @@ class MacroPanel(UI_CLASS, QgsDevToolWidget):  # type: ignore
             path = Path(file_path)
             if not path.suffix:
                 path = path.with_name(path.name + ".json")
-                serialized_macros = [macro.serialize() for macro in self._model.macros]
-                with path.open("w") as f:
-                    json.dump(serialized_macros, f, indent=4)
-                MsgBar.info(
-                    tr("Macros saved"),
-                    tr("File saved to {}", str(path)),
-                    success=True,
-                )
+            serialized_macros = [macro.serialize() for macro in self._model.macros]
+            with path.open("w") as f:
+                json.dump(serialized_macros, f, indent=4)
+            MsgBar.info(
+                tr("Macros saved"),
+                tr("File saved to {}", str(path)),
+                success=True,
+            )
 
     def _update_ui_state(self, *args: Any) -> None:
         """
