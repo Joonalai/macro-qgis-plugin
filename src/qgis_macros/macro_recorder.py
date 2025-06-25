@@ -85,6 +85,7 @@ class MacroRecorder(QObject):
             if self._filter_out_mouse_movements
             else self._recorded_events
         )
+        self._interpolate_mouse_move_events(events)
         macro = Macro(events)
         LOGGER.debug("Recorded macro %s", macro)
         return macro
@@ -145,16 +146,17 @@ class MacroRecorder(QObject):
 
         filtered_events.extend(self._recorded_events[first_index : last_index + 1])
 
-        point_count = Settings.move_event_interpolation_count.get()
+        return filtered_events
 
-        for event in filtered_events:
+    def _interpolate_mouse_move_events(self, events: list[MacroEvent]) -> None:
+        """Interpolate mouse move events."""
+        point_count = Settings.move_event_interpolation_count.get()
+        for event in events:
             if (
                 isinstance(event, MacroMouseMoveEvent)
                 and len(event.positions) > point_count
             ):
                 event.interpolate_positions(point_count)
-
-        return filtered_events
 
     def _record_key_event(
         self, event: QKeyEvent, widget: QWidget, elapsed: int

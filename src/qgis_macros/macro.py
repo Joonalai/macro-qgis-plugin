@@ -264,6 +264,7 @@ class MacroMouseMoveEvent(BaseMacroEvent):
             QApplication.processEvents()
 
     def interpolate_positions(self, number_of_positions: int) -> None:
+        """Interpolate the positions to a given number of positions."""
         self.positions = Position.interpolate(self.positions, number_of_positions)
 
     def __eq__(self, other: object) -> bool:
