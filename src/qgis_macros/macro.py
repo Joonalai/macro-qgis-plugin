@@ -23,7 +23,7 @@ from typing import Callable, Optional, Protocol, Union
 
 from qgis.core import Qgis, QgsApplication, QgsLineString
 from qgis.PyQt.QtCore import QEvent, QPoint, Qt
-from qgis.PyQt.QtGui import QCursor, QMouseEvent
+from qgis.PyQt.QtGui import QCursor, QMouseEvent, QWheelEvent
 from qgis.PyQt.QtTest import QTest
 from qgis.PyQt.QtWidgets import QApplication, QWidget
 
@@ -86,7 +86,7 @@ class Position:
     global_position: tuple[int, int]
 
     @staticmethod
-    def from_event(event: QMouseEvent) -> "Position":
+    def from_event(event: Union[QMouseEvent, QWheelEvent]) -> "Position":
         return Position(
             (event.x(), event.y()),
             (event.globalX(), event.globalY()),
@@ -327,6 +327,46 @@ class MacroMouseEvent(BaseMacroEvent):
             and self.button == other.button
             and self.modifiers == other.modifiers
             and self.is_release == other.is_release
+        )
+
+
+@dataclass
+class MacroWheelEvent(BaseMacroEvent):
+    position: Position = default_position
+    delta: int = 0
+    phase: int = 0
+    inverted: bool = False
+    source: int = 0
+
+    def perform_event_action(self, schedule_next: Callable[[], None]) -> None:
+        widget, corrected_position = self.get_widget_and_corrected_position(
+            self.position
+        )
+        self.move_cursor(corrected_position.global_point)
+        schedule_next()
+        event = QWheelEvent(
+            corrected_position.local_point,
+            corrected_position.global_point,
+            QPoint(0, self.delta),
+            QPoint(0, self.delta),
+            Qt.NoButton,
+            Qt.NoModifier,
+            self.phase,
+            self.inverted,
+            self.source,
+        )
+        QApplication.postEvent(widget, event)
+        QApplication.processEvents()
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, MacroWheelEvent):
+            return NotImplemented
+        return super().__eq__(other) and (
+            self.position == other.position
+            and self.delta == other.delta
+            and self.phase == other.phase
+            and self.inverted == other.inverted
+            and self.source == other.source
         )
 
 

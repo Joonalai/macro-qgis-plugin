@@ -18,7 +18,7 @@
 from typing import cast
 
 from qgis.PyQt.QtCore import QElapsedTimer, QEvent, QObject
-from qgis.PyQt.QtGui import QKeyEvent, QMouseEvent
+from qgis.PyQt.QtGui import QKeyEvent, QMouseEvent, QWheelEvent
 from qgis.PyQt.QtWidgets import QApplication, QWidget
 
 from qgis_macros.macro import (
@@ -29,6 +29,7 @@ from qgis_macros.macro import (
     MacroMouseDoubleClickEvent,
     MacroMouseEvent,
     MacroMouseMoveEvent,
+    MacroWheelEvent,
     Position,
     WidgetSpec,
 )
@@ -106,7 +107,6 @@ class MacroRecorder(QObject):
         ):
             return super().eventFilter(obj, event)
 
-        # TODO: mouse wheel
         if event.type() in [QEvent.KeyPress, QEvent.KeyRelease]:
             self._record_key_event(event, widget, ms_since_last_event)
         elif event.type() in [QEvent.MouseButtonPress, QEvent.MouseButtonRelease]:
@@ -117,6 +117,8 @@ class MacroRecorder(QObject):
             )
         elif event.type() == QEvent.MouseMove:
             self._record_mouse_move_event(event, widget)
+        elif event.type() == QEvent.Wheel:
+            self._record_mouse_wheel_event(event, widget)
 
         return super().eventFilter(obj, event)
 
@@ -239,3 +241,17 @@ class MacroRecorder(QObject):
                     modifiers=int(event.modifiers()),
                 )
             )
+
+    def _record_mouse_wheel_event(self, event: QWheelEvent, widget: QWidget) -> None:
+        """Record mouse wheel events."""
+        self._recorded_events.append(
+            MacroWheelEvent(
+                WidgetSpec.create(widget),
+                ms_since_last_event=0,
+                position=Position.from_event(event),
+                delta=event.angleDelta().y(),
+                phase=event.phase(),
+                source=event.source(),
+                inverted=event.inverted(),
+            )
+        )
