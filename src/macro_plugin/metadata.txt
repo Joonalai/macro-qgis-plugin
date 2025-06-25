@@ -1,13 +1,13 @@
 [general]
 name=Macros
 description=Tool and library to create macros in QGIS
-about=Tool and library to create macros in QGIS
+about=This plugin adds a Macro panel into the Debugging/Development Tools dock widget. Check <a href="https://github.com/Joonalai/macro-qgis-plugin/blob/main/README.md">README</a> for instructions.
 version=0.0.0.development
 qgisMinimumVersion=3.34
 qgisMaximumVersion=3.99
 # icon=
 author=Joonalai
-email=joona.laine@cofactor.fi
+email=dev@cofactor.fi
 changelog=
 tags= macro, task, performance, development, automation, automate
 repository=https://github.com/Joonalai/macro-qgis-plugin

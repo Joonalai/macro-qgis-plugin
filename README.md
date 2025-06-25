@@ -5,8 +5,6 @@
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![pre-commit](https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white)](https://github.com/pre-commit/pre-commit)
 
-**UNDER ACTIVE DEVELOPMENT!**
-
 The QGIS Macro Plugin is a plugin ment to extend QGIS development tools
 dock widget with macro panel to allow user to record simple macros
 ![macro.gif](docs/macro.gif?raw=True "Profiling")
@@ -14,6 +12,8 @@ dock widget with macro panel to allow user to record simple macros
 ## Features
 
 * Record and playback macros, ie. user mouse and keyboard events
+* Save macros to disk for later usage
+* Optionally profile macros
 
 ## Installation
 
