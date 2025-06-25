@@ -21,7 +21,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Callable, Optional, Protocol, Union
 
-from qgis.core import QgsApplication, QgsLineString
+from qgis.core import Qgis, QgsApplication, QgsLineString
 from qgis.PyQt.QtCore import QEvent, QPoint, Qt
 from qgis.PyQt.QtGui import QCursor, QMouseEvent
 from qgis.PyQt.QtTest import QTest
@@ -363,10 +363,16 @@ class Macro:
     events: list[MacroEvent]
     name: Optional[str] = None
     speed: float = 1.0
+    qgis_version: int = Qgis.versionInt()
 
     def serialize(self) -> dict:
         events: list[dict] = []
-        data = {"name": self.name, "speed": self.speed, "events": events}
+        data = {
+            "name": self.name,
+            "speed": self.speed,
+            "events": events,
+            "qgis_version": self.qgis_version,
+        }
         for event in self.events:
             class_name = event.__class__.__name__
             serialized_event = dataclasses.asdict(event)  # type: ignore[call-overload]
@@ -399,4 +405,4 @@ class Macro:
             event_cls = globals()[class_name]
             event = event_cls(**event_data)
             events.append(event)
-        return cls(events, data["name"], data["speed"])
+        return cls(events, data["name"], data["speed"], data["qgis_version"])
