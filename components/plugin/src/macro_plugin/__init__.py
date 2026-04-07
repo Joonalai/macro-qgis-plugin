@@ -16,6 +16,8 @@
 #  You should have received a copy of the GNU General Public License
 #  along with macro-qgis-plugin. If not, see <https://www.gnu.org/licenses/>.
 
+"""QGIS Macro Plugin entry point."""
+
 from typing import TYPE_CHECKING
 
 from macro_plugin.plugin import MacroPlugin
@@ -27,4 +29,5 @@ if TYPE_CHECKING:
 def classFactory(  # noqa: N802 (qgis naming)
     iface: "QgisInterface",
 ) -> MacroPlugin:
+    """Create the plugin instance (called by QGIS on plugin load)."""
     return MacroPlugin()

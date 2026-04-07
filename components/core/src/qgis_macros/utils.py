@@ -16,6 +16,8 @@
 #  You should have received a copy of the GNU General Public License
 #  along with macro-qgis-plugin. If not, see <https://www.gnu.org/licenses/>.
 
+"""Utility functions for widget lookup, event position handling, and Qt compat."""
+
 from collections.abc import Iterator
 from typing import (
     TYPE_CHECKING,
@@ -34,10 +36,12 @@ iface = cast("QgisInterface", iface_)
 
 
 def is_object_map_canvas(obj: QObject) -> bool:
+    """Return True if *obj* is the map canvas viewport widget."""
     return obj == iface.mapCanvas().viewport()
 
 
 def get_widget_text(widget: QWidget) -> str:
+    """Return the display text of *widget*, falling back to its object name."""
     text = ""
     if isinstance(widget, QAbstractButton):
         text = widget.text()
@@ -47,6 +51,7 @@ def get_widget_text(widget: QWidget) -> str:
 def find_nearest_visible_children_of_type(
     target_point: QPoint, parent_widget: QWidget, widget_class: str
 ) -> Iterator[QWidget]:
+    """Yield visible children of *widget_class* sorted by distance to *target_point*."""
     widgets = find_nearest_visible_children_with_threshold(target_point, parent_widget)
     return (widget for widget in widgets if widget.__class__.__name__ == widget_class)
 
@@ -54,6 +59,7 @@ def find_nearest_visible_children_of_type(
 def find_nearest_visible_children_with_threshold(
     target_point: QPoint, parent_widget: QWidget
 ) -> Iterator[QWidget]:
+    """Yield all visible descendants of *parent_widget* sorted by distance."""
     nearest_visible_children = set()
 
     def distance_to_widget(widget: QWidget) -> int:

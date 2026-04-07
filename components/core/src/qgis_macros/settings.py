@@ -15,6 +15,22 @@
 #
 #  You should have received a copy of the GNU General Public License
 #  along with macro-qgis-plugin. If not, see <https://www.gnu.org/licenses/>.
+"""Plugin settings with automatic widget creation for the settings dialog.
+
+Example::
+
+    from qgis_macros.settings import Settings
+
+    # Read the current playback speed
+    speed = Settings.speed.get()
+
+    # Update a setting
+    Settings.speed.set(2.0)
+
+    # Reset all settings to defaults
+    Settings.reset()
+"""
+
 import enum
 import logging
 from dataclasses import dataclass
@@ -32,20 +48,21 @@ from qgis_macros.exceptions import InvalidSettingValueError
 
 LOGGER = logging.getLogger(__name__)
 
-"""
-This module is heavily inspired with profiler-qgis-plugin
-licensed under GPLv3.
-"""
+# This module is heavily inspired by profiler-qgis-plugin (GPLv3).
 # TODO: move to a common library
 
 
 class WidgetType(enum.Enum):
+    """Type of Qt widget used to edit a setting in the UI."""
+
     LINE_EDIT = "line_edit"
     CHECKBOX = "checkbox"
     SPIN_BOX = "spin_box"
 
 
 class SettingCategory(enum.Enum):
+    """Grouping categories shown in the settings dialog."""
+
     MACRO = tr("Macro")
 
 
@@ -60,6 +77,8 @@ class WidgetConfig:
 
 @dataclass
 class Setting(QObject):
+    """Descriptor for a single plugin setting with metadata for UI generation."""
+
     description: str
     default: Any
     category: SettingCategory = SettingCategory.MACRO
@@ -88,6 +107,8 @@ class Setting(QObject):
 
 
 class Settings(enum.Enum):
+    """All configurable plugin settings."""
+
     speed = Setting(
         description=tr("Macro playback speed"),
         default=1.0,
@@ -117,15 +138,12 @@ class Settings(enum.Enum):
 
     @staticmethod
     def reset() -> None:
-        """
-        Resets the state of the application or relevant subsystem to its initial default
-        state.
-        """
+        """Reset all settings to their default values."""
         for setting in Settings:
             setting.set(setting.value.default)
 
     def get(self) -> Any:
-        """Gets the setting value."""
+        """Return the current value, cast to the default's type."""
         setting = self.value
         value = get_setting(self.name, setting.default)
         if not isinstance(value, type(setting.default)):
@@ -136,7 +154,7 @@ class Settings(enum.Enum):
         return value
 
     def set(self, value: Any) -> None:
-        """Sets the setting value."""
+        """Persist *value* and emit the ``changed`` signal."""
         if not isinstance(value, type(self.value.default)):
             if isinstance(self.value.default, bool):
                 value = bool(value)

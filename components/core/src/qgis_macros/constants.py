@@ -16,6 +16,8 @@
 #  You should have received a copy of the GNU General Public License
 #  along with macro-qgis-plugin. If not, see <https://www.gnu.org/licenses/>.
 
+"""Constants used by the macro recording and playback engine."""
+
 MS_EPSILON = 20
 MAXIMUM_NEAREST_CANDIDATES = 4
 MAXIMUM_PARENT_DEPTH = 7

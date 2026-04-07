@@ -15,6 +15,17 @@
 #
 #  You should have received a copy of the GNU General Public License
 #  along with macro-qgis-plugin. If not, see <https://www.gnu.org/licenses/>.
+"""Asynchronous macro playback engine.
+
+Example::
+
+    from qgis_macros.macro_player import MacroPlayer
+
+    player = MacroPlayer(playback_speed=1.5)
+    player.playback_ended.connect(on_playback_finished)
+    player.play(macro)
+"""
+
 import enum
 import logging
 from dataclasses import dataclass
@@ -29,6 +40,8 @@ LOGGER = logging.getLogger(__name__)
 
 
 class MacroPlaybackStatus(enum.Enum):
+    """Status of a completed macro playback."""
+
     SUCCESS = enum.auto()
     FAILURE = enum.auto()
     # TODO: implement stopped
@@ -37,17 +50,18 @@ class MacroPlaybackStatus(enum.Enum):
 
 @dataclass
 class MacroPlaybackReport:
+    """Report emitted when macro playback completes."""
+
     status: MacroPlaybackStatus = MacroPlaybackStatus.SUCCESS
     error: Exception | None = None
 
-    def __post_init__(self) -> None:
+    def __post_init__(self) -> None:  # noqa: D105
         if self.status == MacroPlaybackStatus.FAILURE and self.error is None:
             raise ValueError("Error must be provided if status is failure.")  # noqa: TRY003
 
 
 class MacroPlayer(QObject):
-    """
-    Represents an object used for macro playback with adjustable speed.
+    """Represents an object used for macro playback with adjustable speed.
 
     Used to execute a sequence of predefined events at a specified playback speed.
     """
@@ -55,11 +69,7 @@ class MacroPlayer(QObject):
     playback_ended = pyqtSignal(MacroPlaybackReport)
 
     def __init__(self, playback_speed: float = 1.0) -> None:
-        """
-        Represents an object used for macro playback with adjustable speed.
-
-        :param playback_speed: Playback speed factor.
-        """
+        """Initialize the player with the given speed factor."""
         super().__init__()
         self._speed = playback_speed
         self._timer = QElapsedTimer()

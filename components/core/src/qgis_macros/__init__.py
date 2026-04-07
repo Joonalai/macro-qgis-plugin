@@ -16,4 +16,6 @@
 #  You should have received a copy of the GNU General Public License
 #  along with macro-qgis-plugin. If not, see <https://www.gnu.org/licenses/>.
 
+"""QGIS Macros core library for recording and playing back user interactions."""
+
 __version__ = "0.0.1"

@@ -16,6 +16,8 @@
 #  You should have received a copy of the GNU General Public License
 #  along with macro-qgis-plugin. If not, see <https://www.gnu.org/licenses/>.
 
+"""Main QGIS plugin class that registers the macro dev tool."""
+
 from typing import TYPE_CHECKING, cast
 
 import qgis_macros
@@ -37,14 +39,18 @@ iface = cast("QgisInterface", iface_)
 
 
 class MacroPlugin(QObject):
+    """QGIS plugin that provides macro recording and playback in dev tools."""
+
     name = tr("Macros")
 
     def __init__(self) -> None:
+        """Initialize the plugin and create the macro tool factory."""
         super().__init__(parent=None)
         self._teardown_loggers = lambda: None
         self._macro_factory = MacroToolFactory()
 
     def initGui(self) -> None:  # noqa: N802
+        """Set up loggers and register the macro panel factory."""
         self._teardown_loggers = setup_loggers(
             qgis_macros.__name__,
             macro_plugin.__name__,
@@ -56,6 +62,7 @@ class MacroPlugin(QObject):
         iface.registerDevToolWidgetFactory(self._macro_factory)
 
     def unload(self) -> None:
+        """Tear down loggers and unregister the macro panel factory."""
         self._teardown_loggers()
         self._teardown_loggers = lambda: None
         iface.unregisterDevToolWidgetFactory(self._macro_factory)

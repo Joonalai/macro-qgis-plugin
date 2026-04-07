@@ -15,6 +15,8 @@
 #
 #  You should have received a copy of the GNU General Public License
 #  along with macro-qgis-plugin. If not, see <https://www.gnu.org/licenses/>.
+"""Macro panel UI with recording, playback, and file I/O controls."""
+
 import json
 from pathlib import Path
 from typing import Any
@@ -54,8 +56,7 @@ UI_CLASS: QWidget = load_ui_from_file(
 
 
 class MacroPanel(UI_CLASS, QgsDevToolWidget):  # type: ignore
-    """
-    A dev tool widget for macro recording, playing, and deletion.
+    """A dev tool widget for macro recording, playing, and deletion.
 
     Provides a table view to display macros and buttons to record, play, and delete
     macros.
@@ -75,7 +76,8 @@ class MacroPanel(UI_CLASS, QgsDevToolWidget):  # type: ignore
         macro_player: MacroPlayer,
         parent: QWidget | None = None,
     ) -> None:
-        """
+        """Initialize the panel.
+
         :param macro_recorder: Instance of MacroRecorder to handle macro
             recording interactions.
         :param macro_player: Instance of MacroPlayer to handle macro
@@ -98,9 +100,7 @@ class MacroPanel(UI_CLASS, QgsDevToolWidget):  # type: ignore
         self._update_ui_state()
 
     def _configure_table(self) -> None:
-        """
-        Set up the table view with appropriate settings.
-        """
+        """Set up the table view with appropriate settings."""
         self.table_view.horizontalHeader().setSectionResizeMode(
             QHeaderView.ResizeMode.Stretch
         )
@@ -108,9 +108,7 @@ class MacroPanel(UI_CLASS, QgsDevToolWidget):  # type: ignore
         self.table_view.selectionModel().selectionChanged.connect(self._update_ui_state)
 
     def _configure_buttons(self) -> None:
-        """
-        Configures the buttons with icons, tooltips, and connect them to their actions.
-        """
+        """Configure buttons with icons, tooltips, and connect them to actions."""
         button_config = {
             self.button_record: (
                 self._toggle_recording,
@@ -235,9 +233,7 @@ class MacroPanel(UI_CLASS, QgsDevToolWidget):  # type: ignore
             )
 
     def _update_ui_state(self, *args: Any) -> None:
-        """
-        Updates the state of the UI components based on the current status.
-        """
+        """Update button enabled/checked states to reflect current status."""
         self.button_record.setChecked(self._recorder.is_recording())
         self.button_play.setEnabled(len(self.table_view.selectedIndexes()) == 1)
         self.button_save.setEnabled(bool(self._model.macros))
@@ -245,18 +241,19 @@ class MacroPanel(UI_CLASS, QgsDevToolWidget):  # type: ignore
 
 
 class MacroToolFactory(QgsDevToolWidgetFactory):
-    """
-    Factory class for creating Macro tool widgets.
+    """Factory class for creating Macro tool widgets.
 
     This class is responsible for creating instances of MacroPanel
     within the QGIS development tool framework.
     """
 
     def __init__(self) -> None:
+        """Initialize the factory with a name and icon."""
         super().__init__(
             tr("Macro dev tool"),
             QgsApplication.getThemeIcon("/mActionRecord.svg"),
         )
 
     def createWidget(self, parent: QWidget | None = None) -> MacroPanel:  # noqa: N802
+        """Create a new MacroPanel instance."""
         return MacroPanel(MacroRecorder(), MacroPlayer(Settings.speed.get()), parent)
