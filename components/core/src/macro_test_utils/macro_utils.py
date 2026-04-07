@@ -25,6 +25,7 @@ from qgis_macros.macro import (
     MacroMouseMoveEvent,
     Position,
 )
+from qgis_macros.utils import enum_value
 
 from macro_test_utils.utils import WidgetInfo
 
@@ -37,8 +38,8 @@ def widget_clicking_macro_events(
     widget: WidgetInfo,
     position: Position | None = None,
     elapsed: tuple[int, int] = (0, 0),
-    modifiers: int = Qt.NoModifier,
-    button: int = Qt.LeftButton,
+    modifiers: int = enum_value(Qt.KeyboardModifier.NoModifier),
+    button: int = enum_value(Qt.MouseButton.LeftButton),
 ) -> list[MacroEvent]:
     position = position or widget.position
     return [
@@ -61,7 +62,9 @@ def widget_clicking_macro_events(
 
 
 def widget_double_clicking_macro_event(
-    widget: WidgetInfo, elapsed: int = 0, modifiers: int = Qt.NoModifier
+    widget: WidgetInfo,
+    elapsed: int = 0,
+    modifiers: int = enum_value(Qt.KeyboardModifier.NoModifier),
 ) -> MacroEvent:
     return MacroMouseDoubleClickEvent(
         widget_spec=widget.widget_spec,
@@ -75,7 +78,7 @@ def key_macro_events(
     widget: WidgetInfo,
     key: int,
     elapsed: tuple[int, int] = (0, 0),
-    modifiers: int = Qt.NoModifier,
+    modifiers: int = enum_value(Qt.KeyboardModifier.NoModifier),
 ) -> list[MacroEvent]:
     return [
         MacroKeyEvent(
@@ -98,7 +101,7 @@ def mouse_move_macro_event(
     widget: WidgetInfo,
     positions: list[Position] | None = None,
     elapsed: int = 0,
-    modifiers: int = Qt.NoModifier,
+    modifiers: int = enum_value(Qt.KeyboardModifier.NoModifier),
 ) -> MacroEvent:
     positions = positions or [widget.position]
     return MacroMouseMoveEvent(

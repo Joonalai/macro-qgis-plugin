@@ -148,7 +148,7 @@ def line_edit_key_macro_event(
     dialog_widget_positions: dict[str, WidgetInfo],
 ) -> list[MacroEvent]:
     widget = dialog_widget_positions["line_edit"]
-    return macro_utils.key_macro_events(widget, Qt.Key_A)
+    return macro_utils.key_macro_events(widget, Qt.Key.Key_A)
 
 
 @pytest.fixture
@@ -226,7 +226,7 @@ def digitize_polygon_macro(qgis_canvas: "QgsMapCanvas") -> Macro:
             macro_utils.mouse_move_macro_event(canvas, [third_position]),
             *macro_utils.widget_clicking_macro_events(canvas, third_position),
             *macro_utils.widget_clicking_macro_events(
-                canvas, initial_position, button=Qt.RightButton
+                canvas, initial_position, button=Qt.MouseButton.RightButton
             ),
         ],
     )

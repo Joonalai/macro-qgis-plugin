@@ -34,6 +34,7 @@ from qgis_macros.macro import (
     WidgetSpec,
 )
 from qgis_macros.settings import Settings
+from qgis_macros.utils import enum_value
 
 
 class MacroRecorder(QObject):
@@ -107,17 +108,20 @@ class MacroRecorder(QObject):
         ):
             return super().eventFilter(obj, event)
 
-        if event.type() in [QEvent.KeyPress, QEvent.KeyRelease]:
+        if event.type() in [QEvent.Type.KeyPress, QEvent.Type.KeyRelease]:
             self._record_key_event(event, widget, ms_since_last_event)
-        elif event.type() in [QEvent.MouseButtonPress, QEvent.MouseButtonRelease]:
+        elif event.type() in [
+            QEvent.Type.MouseButtonPress,
+            QEvent.Type.MouseButtonRelease,
+        ]:
             self._record_mouse_button_event(event, widget, ms_since_last_event)
-        elif event.type() == QEvent.MouseButtonDblClick:
+        elif event.type() == QEvent.Type.MouseButtonDblClick:
             self._record_mouse_button_double_click_event(
                 event, widget, ms_since_last_event
             )
-        elif event.type() == QEvent.MouseMove:
+        elif event.type() == QEvent.Type.MouseMove:
             self._record_mouse_move_event(event, widget)
-        elif event.type() == QEvent.Wheel:
+        elif event.type() == QEvent.Type.Wheel:
             self._record_mouse_wheel_event(event, widget)
 
         return super().eventFilter(obj, event)
@@ -167,8 +171,8 @@ class MacroRecorder(QObject):
         macro_event = MacroKeyEvent(
             ms_since_last_event=elapsed,
             key=event.key(),
-            is_release=event.type() == QEvent.KeyRelease,
-            modifiers=int(event.modifiers()),
+            is_release=event.type() == QEvent.Type.KeyRelease,
+            modifiers=enum_value(event.modifiers()),
             widget_spec=WidgetSpec.create(widget),
         )
 
@@ -191,9 +195,9 @@ class MacroRecorder(QObject):
         macro_event = MacroMouseEvent(
             ms_since_last_event=elapsed,
             position=Position.from_event(event),
-            is_release=event.type() == QEvent.MouseButtonRelease,
-            button=event.button(),
-            modifiers=int(event.modifiers()),
+            is_release=event.type() == QEvent.Type.MouseButtonRelease,
+            button=enum_value(event.button()),
+            modifiers=enum_value(event.modifiers()),
             widget_spec=WidgetSpec.create(widget),
         )
 
@@ -219,8 +223,8 @@ class MacroRecorder(QObject):
             MacroMouseDoubleClickEvent(
                 ms_since_last_event=elapsed,
                 position=Position.from_event(event),
-                button=event.button(),
-                modifiers=int(event.modifiers()),
+                button=enum_value(event.button()),
+                modifiers=enum_value(event.modifiers()),
                 widget_spec=WidgetSpec.create(widget),
             )
         )
@@ -237,8 +241,8 @@ class MacroRecorder(QObject):
                     widget_spec=WidgetSpec.create(widget),
                     ms_since_last_event=0,
                     positions=[current_position],
-                    buttons=int(event.buttons()),
-                    modifiers=int(event.modifiers()),
+                    buttons=enum_value(event.buttons()),
+                    modifiers=enum_value(event.modifiers()),
                 )
             )
 

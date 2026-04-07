@@ -138,6 +138,6 @@ class WidgetEventListener(QObject):
 
     def eventFilter(self, watched_object: QObject, event: QEvent) -> bool:  # noqa: N802
         """Override of QObject.eventFilter to detect double clicks."""
-        if event.type() == QEvent.MouseButtonDblClick:
+        if event.type() == QEvent.Type.MouseButtonDblClick:
             self.double_clicked.emit()
         return super().eventFilter(watched_object, event)
