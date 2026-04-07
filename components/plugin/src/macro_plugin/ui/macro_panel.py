@@ -92,6 +92,7 @@ class MacroPanel(UI_CLASS, QgsDevToolWidget):  # type: ignore
 
         self._player = macro_player
         self._player.playback_ended.connect(self._macro_playback_ended)
+        self._last_played_macro_name: str | None = None
 
         self._model = MacroTableModel()
 
@@ -171,6 +172,7 @@ class MacroPanel(UI_CLASS, QgsDevToolWidget):  # type: ignore
                 f"Macro: {macro.name}", Settings.profile_macro_group.get()
             )
 
+        self._last_played_macro_name = macro.name
         self._player.play(macro)
 
     @log_if_fails
@@ -182,7 +184,11 @@ class MacroPanel(UI_CLASS, QgsDevToolWidget):  # type: ignore
                 tr("Playback ended with failure.")
             )
         MsgBar.info(
-            tr("Macro playback ended"), tr("Macro playback ended successfully.")
+            tr("Macro playback ended"),
+            tr(
+                "Macro '{}' playback ended successfully.",
+                self._last_played_macro_name,
+            ),
         )
 
     def _delete_macros(self) -> None:
