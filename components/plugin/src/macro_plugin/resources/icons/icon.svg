@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <!-- Circle background -->
+  <circle cx="60" cy="60" r="58" fill="#f0f0f0" stroke="#222222" stroke-width="3"/>
+
+  <!-- Clapperboard base -->
+  <rect x="24" y="46" width="72" height="46" rx="3" fill="#222222"/>
+
+  <!-- Clapper top (angled) -->
+  <polygon points="24,46 96,46 96,36 30,30" fill="#222222"/>
+
+  <!-- Clapper stripes -->
+  <polygon points="32,30.8 38,30.3 40,46 34,46" fill="#f0f0f0"/>
+  <polygon points="48,29.4 54,28.9 56,46 50,46" fill="#f0f0f0"/>
+  <polygon points="64,28 70,27.5 72,46 66,46" fill="#f0f0f0"/>
+  <polygon points="80,26.6 86,26.1 88,46 82,46" fill="#f0f0f0"/>
+
+  <!-- Hinge circle -->
+  <circle cx="28" cy="46" r="4" fill="#444444"/>
+  <circle cx="28" cy="46" r="1.5" fill="#f0f0f0"/>
+
+  <!-- Play triangle on the board -->
+  <polygon points="52,58 52,80 72,69" fill="#f0f0f0"/>
+</svg>

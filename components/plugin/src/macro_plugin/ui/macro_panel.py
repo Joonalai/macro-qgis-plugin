@@ -23,6 +23,7 @@ from typing import Any
 
 from qgis.core import QgsApplication
 from qgis.gui import QgsDevToolWidget, QgsDevToolWidgetFactory
+from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import (
     QFileDialog,
     QHeaderView,
@@ -43,7 +44,7 @@ from qgis_macros.settings import Settings
 from qgis_plugin_tools.tools.decorations import log_if_fails
 from qgis_plugin_tools.tools.i18n import tr
 from qgis_plugin_tools.tools.messages import MsgBar
-from qgis_plugin_tools.tools.resources import load_ui_from_file
+from qgis_plugin_tools.tools.resources import load_ui_from_file, resources_path
 
 from macro_plugin.ui.macro_model import MacroTableModel
 from macro_plugin.ui.settings_dialog import SettingsDialog
@@ -249,10 +250,7 @@ class MacroToolFactory(QgsDevToolWidgetFactory):
 
     def __init__(self) -> None:
         """Initialize the factory with a name and icon."""
-        super().__init__(
-            tr("Macro dev tool"),
-            QgsApplication.getThemeIcon("/mActionRecord.svg"),
-        )
+        super().__init__(tr("Macro dev tool"), QIcon(resources_path("icons/icon.svg")))
 
     def createWidget(self, parent: QWidget | None = None) -> MacroPanel:  # noqa: N802
         """Create a new MacroPanel instance."""
