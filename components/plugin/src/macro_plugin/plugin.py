@@ -1,4 +1,4 @@
-#  Copyright (c) 2025 macro-qgis-plugin contributors.
+#  Copyright (c) 2025-2026 macro-qgis-plugin contributors.
 #
 #
 #  This file is part of macro-qgis-plugin.
@@ -18,6 +18,7 @@
 
 from typing import TYPE_CHECKING, cast
 
+import qgis_macros
 import qgis_plugin_tools
 from qgis.PyQt.QtCore import QObject
 from qgis.utils import iface as iface_
@@ -27,7 +28,6 @@ from qgis_plugin_tools.tools.custom_logging import (
 from qgis_plugin_tools.tools.i18n import tr
 
 import macro_plugin
-import qgis_macros
 from macro_plugin.ui.macro_panel import MacroToolFactory
 
 if TYPE_CHECKING:

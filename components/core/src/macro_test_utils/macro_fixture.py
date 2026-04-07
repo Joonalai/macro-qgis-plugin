@@ -1,4 +1,4 @@
-#  Copyright (c) 2025 macro-qgis-plugin contributors.
+#  Copyright (c) 2025-2026 macro-qgis-plugin contributors.
 #
 #
 #  This file is part of macro-qgis-plugin.
