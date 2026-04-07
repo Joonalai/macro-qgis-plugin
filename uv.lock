@@ -474,7 +474,7 @@ wheels = [
 
 [[package]]
 name = "macro-qgis-core"
-version = "0.1.0"
+version = "0.1.0.post1"
 source = { editable = "components/core" }
 dependencies = [
     { name = "qgis-plugin-tools" },
@@ -533,7 +533,7 @@ lint = [
 
 [[package]]
 name = "macro-qgis-plugin"
-version = "0.1.0"
+version = "0.1.0.post1"
 source = { editable = "components/plugin" }
 dependencies = [
     { name = "macro-qgis-core" },

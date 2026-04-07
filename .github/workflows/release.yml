@@ -24,7 +24,7 @@ jobs:
       - name: Build
         run: uv build --all-packages
       - name: Publish to PyPI
-        run: uv publish --dry-run
+        run: uv publish
 
       - name: Build and publish QGIS Plugin
         run: |
