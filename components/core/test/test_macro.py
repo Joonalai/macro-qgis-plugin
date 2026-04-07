@@ -16,7 +16,6 @@
 #  You should have received a copy of the GNU General Public License
 #  along with macro-qgis-plugin. If not, see <https://www.gnu.org/licenses/>.
 import pytest
-
 from qgis_macros.macro import Macro, Position
 
 pytest_plugins = [

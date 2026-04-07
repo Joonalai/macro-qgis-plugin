@@ -19,7 +19,6 @@
 from typing import TYPE_CHECKING
 
 import pytest
-
 from macro_plugin.ui.settings_dialog import SettingsDialog
 from qgis_macros.settings import SettingCategory, Settings
 

@@ -17,8 +17,6 @@
 #  along with macro-qgis-plugin. If not, see <https://www.gnu.org/licenses/>.
 
 from qgis.PyQt.QtCore import Qt
-
-from macro_test_utils.utils import WidgetInfo
 from qgis_macros.macro import (
     MacroEvent,
     MacroKeyEvent,
@@ -27,6 +25,8 @@ from qgis_macros.macro import (
     MacroMouseMoveEvent,
     Position,
 )
+
+from macro_test_utils.utils import WidgetInfo
 
 """
 Helper functions to create macro events for testing

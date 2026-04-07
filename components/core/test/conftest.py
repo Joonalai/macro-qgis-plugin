@@ -19,6 +19,8 @@ import logging
 from typing import TYPE_CHECKING
 
 import pytest
+from macro_test_utils import utils
+from macro_test_utils.utils import Dialog
 from qgis.core import QgsGeometry, QgsProject, QgsVectorLayer, QgsVectorLayerUtils
 from qgis.gui import (
     QgisInterface,
@@ -30,9 +32,6 @@ from qgis.PyQt.QtGui import QCursor
 from qgis.PyQt.QtWidgets import (
     QWidget,
 )
-
-from macro_test_utils import utils
-from macro_test_utils.utils import Dialog
 from qgis_macros.settings import Settings
 
 if TYPE_CHECKING:

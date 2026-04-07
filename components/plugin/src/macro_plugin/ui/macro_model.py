@@ -18,9 +18,8 @@
 from typing import ClassVar
 
 from qgis.PyQt.QtCore import QAbstractTableModel, QModelIndex, Qt, QVariant
-from qgis_plugin_tools.tools.i18n import tr
-
 from qgis_macros.macro import Macro
+from qgis_plugin_tools.tools.i18n import tr
 
 
 class MacroTableModel(QAbstractTableModel):

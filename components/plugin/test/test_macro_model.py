@@ -17,9 +17,8 @@
 #  along with macro-qgis-plugin. If not, see <https://www.gnu.org/licenses/>.
 from typing import TYPE_CHECKING
 
-from qgis.PyQt.QtCore import QModelIndex, Qt, QVariant
-
 from macro_plugin.ui.macro_model import MacroTableModel
+from qgis.PyQt.QtCore import QModelIndex, Qt, QVariant
 from qgis_macros.macro import Macro
 
 if TYPE_CHECKING:

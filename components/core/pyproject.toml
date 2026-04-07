@@ -1,0 +1,49 @@
+[project]
+name = "macro-qgis-core"
+version = "0.0.1"
+readme = "README.md"
+license = "GPL-3.0-only"
+requires-python = ">=3.12"
+dependencies = ["qgis_plugin_tools>=0.5.0,<1"]
+
+
+[build-system]
+requires = ["uv_build>=0.11.0,<0.12.0"]
+build-backend = "uv_build"
+
+[[tool.uv.index]]
+name = "testpypi"
+url = "https://test.pypi.org/simple/"
+publish-url = "https://test.pypi.org/legacy/"
+explicit = true
+
+[tool.uv.build-backend]
+module-name = "qgis_macros"
+include = ["py.typed"]
+
+[tool.uv]
+default-groups = ["dev", "lint"]
+
+[dependency-groups]
+dev = [
+  "exceptiongroup>=1.2.2",
+  "prek>=0.3.8",
+  "pyqt5-stubs>=5.15.6.0",
+  "pytest>=8.3.5",
+  "pytest-cov>=6.1.0",
+  "pytest-dotenv>=0.5.2",
+  "pytest-lazy-fixtures>=1.1.2",
+  "pytest-mock>=3.14.0",
+  "pytest-qgis>=2.1.0,<3.0.0",
+  "pytest-qt>=4.4.0",
+  "pytest-subtests>=0.14.1",
+  "pytest-timeout>=2.3.1",
+  "qgis-plugin-dev-tools>=0.9.1",
+]
+lint = [
+  "flake8>=6.0.0",
+  "flake8-pyproject>=1.2.3",
+  "flake8-qgis>=1.0.0,<2.0.0",
+  "flake8-spellcheck>=0.28.0",
+  "mypy>=1.13.0",
+]

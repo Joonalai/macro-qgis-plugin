@@ -20,10 +20,9 @@ from collections.abc import Iterator
 from typing import TYPE_CHECKING
 
 import pytest
+from macro_test_utils.utils import WidgetEventListener
 from qgis.core import QgsFeature
 from qgis.gui import QgsMapToolDigitizeFeature
-
-from macro_test_utils.utils import WidgetEventListener
 from qgis_macros.exceptions import MacroPlaybackEndedError
 from qgis_macros.macro import (
     Macro,
@@ -40,10 +39,9 @@ TIMEOUT = 1000
 WAIT_MS = 5
 
 if TYPE_CHECKING:
+    from macro_test_utils.utils import Dialog
     from pytest_mock import MockerFixture
     from pytestqt.qtbot import QtBot
-
-    from macro_test_utils.utils import Dialog
 
 pytest_plugins = [
     "macro_test_utils.macro_fixture",

@@ -20,6 +20,8 @@ from collections.abc import Iterator
 from typing import TYPE_CHECKING
 
 import pytest
+from macro_test_utils import macro_utils
+from macro_test_utils.utils import Dialog, WidgetInfo
 from qgis.core import (
     QgsFeature,
 )
@@ -28,9 +30,6 @@ from qgis.gui import (
     QgsMapToolDigitizeFeature,
 )
 from qgis.PyQt.QtCore import QPoint, Qt
-
-from macro_test_utils import macro_utils
-from macro_test_utils.utils import Dialog, WidgetInfo
 from qgis_macros.macro import Position
 from qgis_macros.macro_recorder import MacroRecorder
 

@@ -29,13 +29,6 @@ from qgis.PyQt.QtWidgets import (
     QToolButton,
     QWidget,
 )
-from qgis_plugin_tools.tools.decorations import log_if_fails
-from qgis_plugin_tools.tools.i18n import tr
-from qgis_plugin_tools.tools.messages import MsgBar
-from qgis_plugin_tools.tools.resources import load_ui_from_file
-
-from macro_plugin.ui.macro_model import MacroTableModel
-from macro_plugin.ui.settings_dialog import SettingsDialog
 from qgis_macros.exceptions import MacroPluginError
 from qgis_macros.macro import Macro
 from qgis_macros.macro_player import (
@@ -45,6 +38,13 @@ from qgis_macros.macro_player import (
 )
 from qgis_macros.macro_recorder import MacroRecorder
 from qgis_macros.settings import Settings
+from qgis_plugin_tools.tools.decorations import log_if_fails
+from qgis_plugin_tools.tools.i18n import tr
+from qgis_plugin_tools.tools.messages import MsgBar
+from qgis_plugin_tools.tools.resources import load_ui_from_file
+
+from macro_plugin.ui.macro_model import MacroTableModel
+from macro_plugin.ui.settings_dialog import SettingsDialog
 
 MACRO_GROUP = "Macro"
 

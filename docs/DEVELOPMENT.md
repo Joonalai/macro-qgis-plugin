@@ -15,11 +15,13 @@ Make sure to have it installed first.
       with [necessary patches](./osgeo-python-patch.md)
 - Activate the venv
 - Install the dependencies:
-- `uv sync`
+- `uv sync --all-packages --all-groups`
 - Install pre-commit (prek implementation): `prek install`
 - Create a `.env` from `.env.example`, and configure
   at least the QGIS executable path
-- Launch development QGIS: `qpdt s`
+- Launch development QGIS: `uv run --directory components/plugin qpdt s`
+  - If you are in the components/plugin directory, you can also run
+  `uv run qpdt s` or `qpdt s`
 
 ## Requirements changes
 

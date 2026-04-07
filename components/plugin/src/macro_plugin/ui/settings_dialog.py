@@ -33,6 +33,7 @@ from qgis.PyQt.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from qgis_macros.settings import SettingCategory, Settings, WidgetType
 from qgis_plugin_tools.tools.custom_logging import (
     LogTarget,
     get_log_level_key,
@@ -40,8 +41,6 @@ from qgis_plugin_tools.tools.custom_logging import (
 )
 from qgis_plugin_tools.tools.resources import load_ui_from_file
 from qgis_plugin_tools.tools.settings import set_setting
-
-from qgis_macros.settings import SettingCategory, Settings, WidgetType
 
 UI_CLASS: QWidget = load_ui_from_file(
     str(Path(__file__).parent.joinpath("settings_dialog.ui"))
