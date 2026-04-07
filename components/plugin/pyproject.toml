@@ -1,6 +1,6 @@
 [project]
 name = "macro-qgis-plugin"
-version = "0.0.1"
+version = "0.1.0"
 description = "QGIS plugin for recording and playing back macros."
 readme = "README.md"
 license = "GPL-3.0-only"
