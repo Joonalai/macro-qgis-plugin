@@ -1,18 +1,23 @@
 [project]
 name = "marco-qgis-plugin-core"
 dynamic = ["version"]
+description = "QGIS Macro Plugin for recording and playing back user interactions."
 readme = "README.md"
 license = "GPL-3.0-only"
 license-files = ["LICENSE"]
 requires-python = ">=3.12"
-authors = [{ name = "Cofactor Oy", email = "dev@cofactor.fi" }]
 classifiers = [
-  "Development Status :: 4 - Beta",
   "Programming Language :: Python",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3.14",
 ]
+
+
+[project.urls]
+homepage = "https://macro-qgis-plugin.readthedocs.io"
+repository = "https://github.com/Joonalai/macro-qgis-plugin"
+
 
 [tool.uv.workspace]
 members = ["components/*"]
