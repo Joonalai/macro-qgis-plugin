@@ -23,6 +23,12 @@ default-groups = ["dev", "lint"]
 
 [dependency-groups]
 dev = ["prek>=0.3.8"]
+docs = [
+  "sphinx>=7.0,<9.0",
+  "sphinx-rtd-theme>=2.0,<3.0",
+  "sphinx-copybutton>=0.5",
+  "myst-parser>=3.0,<5.0",
+]
 lint = [
   "flake8>=6.0.0",
   "flake8-pyproject>=1.2.3",
@@ -93,6 +99,7 @@ target-version = "py312"
 ban-relative-imports = "all"
 
 [tool.ruff.lint.per-file-ignores]
+"docs/*" = ["ALL"]
 "**/test*" = [
   "INP001",
   "ANN201",
@@ -114,6 +121,7 @@ select = ["SC", "QGS"]
 per-file-ignores = [
   "*/test/*:INP001,SC200,QGS105",
   "*/macro_test_utils/*:INP001,SC200,QGS105",
+  "docs/*:SC200",
 ]
 
 [tool.mypy]
