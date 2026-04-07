@@ -108,6 +108,7 @@ class WidgetPathNode:
     text: str = ""
 
     def matches(self, widget: QWidget) -> bool:
+        """Check if the given widget matches this node's criteria."""
         return (
             widget.__class__.__name__ == self.widget_class
             and self.text == utils.get_widget_text(widget)
@@ -116,8 +117,7 @@ class WidgetPathNode:
 
 @dataclass
 class WidgetPath:
-    """
-    Path from a top-level window down to a target widget.
+    """Path from a top-level window down to a target widget.
 
     Each node identifies a widget by its class name, text, and index
     among same-class siblings. This allows reliable widget lookup even
@@ -130,6 +130,10 @@ class WidgetPath:
 
     @staticmethod
     def create(widget: QWidget) -> "WidgetPath":
+        """Create a WidgetPath from a given widget.
+
+        by traversing its parent hierarchy.
+        """
         is_map_canvas = utils.is_object_map_canvas(widget)
         nodes: list[WidgetPathNode] = []
         current = widget

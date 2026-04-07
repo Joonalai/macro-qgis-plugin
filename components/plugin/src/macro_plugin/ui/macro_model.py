@@ -82,14 +82,16 @@ class MacroTableModel(QAbstractTableModel):
         return NULL
 
     def flags(self, index: QModelIndex) -> Qt.ItemFlag:
+        """Return the flags for the given index."""
         default_flags = super().flags(index)
         if index.isValid():
             return default_flags | Qt.ItemFlag.ItemIsEditable
         return default_flags
 
-    def data(  # noqa: D102
+    def data(
         self, index: QModelIndex, role: Qt.ItemDataRole = Qt.ItemDataRole.DisplayRole
     ) -> QVariant:
+        """Return the data for the given index and role."""
         row = index.row()
         if not index.isValid():
             return NULL
@@ -110,6 +112,7 @@ class MacroTableModel(QAbstractTableModel):
         value: str,
         role: Qt.ItemDataRole = Qt.ItemDataRole.EditRole,
     ) -> bool:
+        """Set the data for the given index and role."""
         if not index.isValid() or role != Qt.ItemDataRole.EditRole:
             return False
         row = index.row()

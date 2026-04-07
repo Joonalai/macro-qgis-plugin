@@ -149,6 +149,7 @@ class MacroRecorder(QObject):
                     widget_spec=first_element.widget_spec,
                     ms_since_last_event=0,
                     positions=[first_element.positions[-1]],
+                    widget_path=first_element.widget_path,
                 )
             )
         else:
@@ -158,9 +159,29 @@ class MacroRecorder(QObject):
         if isinstance(self._recorded_events[last_index], MacroMouseMoveEvent):
             last_index -= 1
 
-        filtered_events.extend(self._recorded_events[first_index : last_index + 1])
+        for event in self._recorded_events[first_index : last_index + 1]:
+            if isinstance(event, MacroMouseMoveEvent) and not self._is_map_canvas_event(
+                event
+            ):
+                # For non-map-canvas moves, keep only the last position
+                filtered_events.append(
+                    MacroMouseMoveEvent(
+                        widget_spec=event.widget_spec,
+                        ms_since_last_event=event.ms_since_last_event,
+                        positions=[event.positions[-1]],
+                        buttons=event.buttons,
+                        modifiers=event.modifiers,
+                        widget_path=event.widget_path,
+                    )
+                )
+            else:
+                filtered_events.append(event)
 
         return filtered_events
+
+    @staticmethod
+    def _is_map_canvas_event(event: MacroMouseMoveEvent) -> bool:
+        return event.widget_path is not None and event.widget_path.is_map_canvas
 
     def _interpolate_mouse_move_events(self, events: list[MacroEvent]) -> None:
         """Interpolate mouse move events."""
