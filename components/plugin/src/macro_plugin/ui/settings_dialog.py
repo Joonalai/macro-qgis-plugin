@@ -92,7 +92,7 @@ class SettingsDialog(QDialog, UI_CLASS):  # type: ignore
         self._setup_logging_settings()
 
         self.button_box.accepted.connect(self.close)
-        self.button_box.button(QDialogButtonBox.Reset).clicked.connect(
+        self.button_box.button(QDialogButtonBox.StandardButton.Reset).clicked.connect(
             self._reset_settings
         )
 
@@ -155,7 +155,7 @@ class SettingsDialog(QDialog, UI_CLASS):  # type: ignore
                     widget.setMaximum(widget_config.maximum)
                 if widget_config.step is not None:
                     widget.setSingleStep(widget_config.step)
-            widget.setValue(setting.get())
+            widget.setValue(setting.get())  # noqa: QGS202
             widget.valueChanged.connect(setting.set)
         else:
             raise NotImplementedError

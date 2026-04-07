@@ -23,6 +23,7 @@ from typing import (
 )
 
 from qgis.PyQt.QtCore import QObject, QPoint
+from qgis.PyQt.QtGui import QMouseEvent, QWheelEvent
 from qgis.PyQt.QtWidgets import QAbstractButton, QWidget
 from qgis.utils import iface as iface_
 
@@ -74,3 +75,24 @@ def find_nearest_visible_children_with_threshold(
 
     # Sort the results by distance
     return (child[0] for child in sorted(nearest_visible_children, key=lambda x: x[1]))
+
+
+def enum_value(enum_or_flag: object) -> int:
+    """Convert a Qt enum/flag to int, compatible with both PyQt5 and PyQt6."""
+    if hasattr(enum_or_flag, "value"):
+        return enum_or_flag.value  # type: ignore[union-attr]
+    return int(enum_or_flag)  # type: ignore[arg-type,call-overload]
+
+
+def event_pos(event: QMouseEvent | QWheelEvent) -> QPoint:
+    """Get local position from a mouse/wheel event (PyQt5/6 compatible)."""
+    if hasattr(event, "position"):
+        return event.position().toPoint()
+    return event.pos()
+
+
+def event_global_pos(event: QMouseEvent | QWheelEvent) -> QPoint:
+    """Get global position from a mouse/wheel event (PyQt5/6 compatible)."""
+    if hasattr(event, "globalPosition"):
+        return event.globalPosition().toPoint()
+    return event.globalPos()

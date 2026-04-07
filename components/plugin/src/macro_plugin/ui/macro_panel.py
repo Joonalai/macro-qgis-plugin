@@ -101,7 +101,9 @@ class MacroPanel(UI_CLASS, QgsDevToolWidget):  # type: ignore
         """
         Set up the table view with appropriate settings.
         """
-        self.table_view.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.table_view.horizontalHeader().setSectionResizeMode(
+            QHeaderView.ResizeMode.Stretch
+        )
         self.table_view.setModel(self._model)
         self.table_view.selectionModel().selectionChanged.connect(self._update_ui_state)
 

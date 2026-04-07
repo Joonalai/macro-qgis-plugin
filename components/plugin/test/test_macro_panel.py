@@ -101,8 +101,8 @@ def mock_index(mocker: "MockerFixture") -> "MagicMock":
 
 @pytest.fixture
 def record_macro(macro_panel: MacroPanel, qtbot: "QtBot") -> None:
-    qtbot.mouseClick(macro_panel.button_record, Qt.LeftButton)
-    qtbot.mouseClick(macro_panel.button_record, Qt.LeftButton)
+    qtbot.mouseClick(macro_panel.button_record, Qt.MouseButton.LeftButton)
+    qtbot.mouseClick(macro_panel.button_record, Qt.MouseButton.LeftButton)
 
 
 @pytest.fixture
@@ -147,7 +147,7 @@ def test_macro_panel_toggle_recording(
 ) -> None:
     with subtests.test("Start recording"):
         # Act
-        qtbot.mouseClick(macro_panel.button_record, Qt.LeftButton)
+        qtbot.mouseClick(macro_panel.button_record, Qt.MouseButton.LeftButton)
 
         # Assert
         mock_macro_recorder.start_recording.assert_called_once()
@@ -155,7 +155,7 @@ def test_macro_panel_toggle_recording(
 
     with subtests.test("Stop recording"):
         # Act
-        qtbot.mouseClick(macro_panel.button_record, Qt.LeftButton)
+        qtbot.mouseClick(macro_panel.button_record, Qt.MouseButton.LeftButton)
 
         # Assert
         mock_macro_recorder.stop_recording.assert_called_once()
@@ -199,7 +199,7 @@ def test_macro_panel_play_macro(
     Settings.profile_macros.set(True)
 
     # Act
-    qtbot.mouseClick(macro_panel.button_play, Qt.LeftButton)
+    qtbot.mouseClick(macro_panel.button_play, Qt.MouseButton.LeftButton)
 
     # Assert
     mock_macro_player.play.assert_called_once_with(mock_macro)
@@ -213,7 +213,7 @@ def test_macro_panel_delete_macro(
     qtbot: "QtBot",
 ) -> None:
     # Act
-    qtbot.mouseClick(macro_panel.button_delete, Qt.LeftButton)
+    qtbot.mouseClick(macro_panel.button_delete, Qt.MouseButton.LeftButton)
 
     # Assert
     assert macro_panel.table_view.selectedIndexes() == []

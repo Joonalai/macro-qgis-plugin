@@ -21,7 +21,13 @@ from typing import TYPE_CHECKING
 import pytest
 from macro_test_utils import utils
 from macro_test_utils.utils import Dialog
-from qgis.core import QgsGeometry, QgsProject, QgsVectorLayer, QgsVectorLayerUtils
+from qgis.core import (
+    QgsApplication,
+    QgsGeometry,
+    QgsProject,
+    QgsVectorLayer,
+    QgsVectorLayerUtils,
+)
 from qgis.gui import (
     QgisInterface,
     QgsAdvancedDigitizingDockWidget,
@@ -87,10 +93,11 @@ def empty_layer(qgis_iface: "QgisInterface") -> QgsVectorLayer:
     temp_feature = QgsVectorLayerUtils.createFeature(
         layer, QgsGeometry.fromWkt(wkt), {}
     )
-    layer.dataProvider().addFeatures([temp_feature])
-    QgsProject.instance().addMapLayer(layer)
+    ok, _ = layer.dataProvider().addFeatures([temp_feature])
+    assert ok
+    assert QgsProject.instance().addMapLayer(layer)
     qgis_iface.setActiveLayer(layer)
-    layer.startEditing()
+    assert layer.startEditing()
     return layer
 
 
@@ -102,3 +109,6 @@ def digitize_feature_map_tool(qgis_canvas: QgsMapCanvas, empty_layer: QgsVectorL
     qgis_canvas.setMapTool(tool)
     yield tool
     qgis_canvas.unsetMapTool(tool)
+    tool.deleteLater()
+    cad_dock.deleteLater()
+    QgsApplication.processEvents()

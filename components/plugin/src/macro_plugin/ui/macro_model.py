@@ -17,7 +17,7 @@
 #  along with macro-qgis-plugin. If not, see <https://www.gnu.org/licenses/>.
 from typing import ClassVar
 
-from qgis.PyQt.QtCore import QAbstractTableModel, QModelIndex, Qt, QVariant
+from qgis.PyQt.QtCore import NULL, QAbstractTableModel, QModelIndex, Qt, QVariant
 from qgis_macros.macro import Macro
 from qgis_plugin_tools.tools.i18n import tr
 
@@ -59,23 +59,29 @@ class MacroTableModel(QAbstractTableModel):
         self,
         section: int,
         orientation: Qt.Orientation,
-        role: Qt.ItemDataRole = Qt.DisplayRole,
+        role: Qt.ItemDataRole = Qt.ItemDataRole.DisplayRole,
     ) -> QVariant:
-        if role == Qt.DisplayRole and orientation == Qt.Horizontal:
-            return self.headers.get(section, QVariant())
-        if role == Qt.TextAlignmentRole and orientation == Qt.Horizontal:
-            return Qt.AlignLeft
-        return QVariant()
+        if (
+            role == Qt.ItemDataRole.DisplayRole
+            and orientation == Qt.Orientation.Horizontal
+        ):
+            return self.headers.get(section, NULL)
+        if (
+            role == Qt.ItemDataRole.TextAlignmentRole
+            and orientation == Qt.Orientation.Horizontal
+        ):
+            return Qt.AlignmentFlag.AlignLeft
+        return NULL
 
     def data(
-        self, index: QModelIndex, role: Qt.ItemDataRole = Qt.DisplayRole
+        self, index: QModelIndex, role: Qt.ItemDataRole = Qt.ItemDataRole.DisplayRole
     ) -> QVariant:
         row = index.row()
         if not index.isValid():
-            return QVariant()
-        if role == Qt.TextAlignmentRole:
-            return Qt.AlignLeft
-        if role in (Qt.DisplayRole, Qt.ToolTipRole):
+            return NULL
+        if role == Qt.ItemDataRole.TextAlignmentRole:
+            return Qt.AlignmentFlag.AlignLeft
+        if role in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.ToolTipRole):
             return QVariant(self.macros[row].name)
 
-        return QVariant()
+        return NULL

@@ -13,20 +13,19 @@ jobs:
       image: qgis/qgis:${{ matrix.qgis-image-tags }}
     strategy:
       matrix:
-        qgis-image-tags: [release-3_34, "3.40", latest]
+        qgis-image-tags: ["3.40-noble", "3.44-noble", "4.0-questing", "latest"]
       fail-fast: false
 
     steps:
-      - uses: actions/checkout@v4
-      - run: |
-          apt update
-          apt install -y python3-venv curl
-      - run: |
-          python3 -m venv --system-site-packages .venv
-      - run: |
-          .venv/bin/pip3 install -q -U pip
-          .venv/bin/pip3 install -q -r requirements.txt --no-deps --only-binary=:all:
-          .venv/bin/pip3 install ./components/core --no-deps
-          .venv/bin/pip3 install ./components/plugin --no-deps
-      - run: |
-          .venv/bin/pytest --qgis_disable_gui --cov --cov-branch --cov-report=xml --junitxml=junit.xml -o junit_family=legacy
+      - uses: actions/checkout@v6
+      - name: Install the latest version of uv
+        uses: astral-sh/setup-uv@cec208311dfd045dd5311c1add060b2062131d57
+
+      - name: Install venv
+        run: |
+          uv venv --system-site-packages
+
+      - name: Run tests
+        run: |
+          uv sync --all-packages --all-groups --locked --active
+          uv run pytest -v --qgis_disable_gui --cov --cov-branch --cov-report=xml --junitxml=junit.xml -o junit_family=legacy

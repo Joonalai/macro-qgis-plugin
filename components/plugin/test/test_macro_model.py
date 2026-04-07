@@ -18,7 +18,7 @@
 from typing import TYPE_CHECKING
 
 from macro_plugin.ui.macro_model import MacroTableModel
-from qgis.PyQt.QtCore import QModelIndex, Qt, QVariant
+from qgis.PyQt.QtCore import NULL, QModelIndex, Qt
 from qgis_macros.macro import Macro
 
 if TYPE_CHECKING:
@@ -30,7 +30,10 @@ def test_macro_table_model_initialization() -> None:
 
     assert model.rowCount(QModelIndex()) == 0
     assert model.columnCount(QModelIndex()) == 1
-    assert model.headerData(0, Qt.Horizontal, Qt.DisplayRole) == "Macro"
+    assert (
+        model.headerData(0, Qt.Orientation.Horizontal, Qt.ItemDataRole.DisplayRole)
+        == "Macro"
+    )
 
 
 def test_macro_table_model_add_macro(mocker: "MockerFixture") -> None:
@@ -41,7 +44,7 @@ def test_macro_table_model_add_macro(mocker: "MockerFixture") -> None:
     model.add_macro(macro_mock)
 
     assert model.rowCount(QModelIndex()) == 1
-    assert model.data(model.index(0, 0), Qt.DisplayRole) == "Test Macro"
+    assert model.data(model.index(0, 0), Qt.ItemDataRole.DisplayRole) == "Test Macro"
 
 
 def test_macro_table_model_remove_macro(mocker: "MockerFixture") -> None:
@@ -59,22 +62,33 @@ def test_macro_table_model_remove_macro(mocker: "MockerFixture") -> None:
     model.remove_macro(0)
 
     assert model.rowCount(QModelIndex()) == 1
-    assert model.data(model.index(0, 0), Qt.DisplayRole) == "Macro 2"
+    assert model.data(model.index(0, 0), Qt.ItemDataRole.DisplayRole) == "Macro 2"
 
 
 def test_macro_table_model_header_data() -> None:
     model = MacroTableModel()
 
-    assert model.headerData(0, Qt.Horizontal, Qt.DisplayRole) == "Macro"
-    assert model.headerData(0, Qt.Vertical, Qt.DisplayRole) == QVariant()
-    assert model.headerData(0, Qt.Horizontal, Qt.TextAlignmentRole) == Qt.AlignLeft
+    assert (
+        model.headerData(0, Qt.Orientation.Horizontal, Qt.ItemDataRole.DisplayRole)
+        == "Macro"
+    )
+    assert (
+        model.headerData(0, Qt.Orientation.Vertical, Qt.ItemDataRole.DisplayRole)
+        == NULL
+    )
+    assert (
+        model.headerData(
+            0, Qt.Orientation.Horizontal, Qt.ItemDataRole.TextAlignmentRole
+        )
+        == Qt.AlignmentFlag.AlignLeft
+    )
 
 
 def test_macro_table_model_data_invalid_index() -> None:
     model = MacroTableModel()
 
     invalid_index = QModelIndex()
-    assert model.data(invalid_index, Qt.DisplayRole) == QVariant()
+    assert model.data(invalid_index, Qt.ItemDataRole.DisplayRole) == NULL
 
 
 def test_macro_table_model_data_text_alignment(mocker: "MockerFixture") -> None:
@@ -86,7 +100,10 @@ def test_macro_table_model_data_text_alignment(mocker: "MockerFixture") -> None:
 
     index = model.index(0, 0)
 
-    assert model.data(index, Qt.TextAlignmentRole) == Qt.AlignLeft
+    assert (
+        model.data(index, Qt.ItemDataRole.TextAlignmentRole)
+        == Qt.AlignmentFlag.AlignLeft
+    )
 
 
 def test_macro_table_model_data_tooltip_role(mocker: "MockerFixture") -> None:
@@ -98,4 +115,4 @@ def test_macro_table_model_data_tooltip_role(mocker: "MockerFixture") -> None:
 
     index = model.index(0, 0)
 
-    assert model.data(index, Qt.ToolTipRole) == "Tooltip Macro"
+    assert model.data(index, Qt.ItemDataRole.ToolTipRole) == "Tooltip Macro"

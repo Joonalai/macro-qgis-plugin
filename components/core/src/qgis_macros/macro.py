@@ -34,6 +34,7 @@ from qgis_macros.constants import (
     MAXIMUM_PARENT_DEPTH,
 )
 from qgis_macros.exceptions import WidgetNotFoundError
+from qgis_macros.utils import enum_value
 
 LOGGER = logging.getLogger(__name__)
 
@@ -88,9 +89,11 @@ class Position:
 
     @staticmethod
     def from_event(event: QMouseEvent | QWheelEvent) -> "Position":
+        position = utils.event_pos(event)
+        global_position = utils.event_global_pos(event)
         return Position(
-            (event.x(), event.y()),
-            (event.globalX(), event.globalY()),
+            (position.x(), position.y()),
+            (global_position.x(), global_position.y()),
         )
 
     @staticmethod
@@ -194,7 +197,7 @@ class BaseMacroEvent(ABC):
 class MacroKeyEvent(BaseMacroEvent):
     key: int = 0
     is_release: bool = False
-    modifiers: int = Qt.NoModifier
+    modifiers: int = enum_value(Qt.KeyboardModifier.NoModifier)
 
     def perform_event_action(self, schedule_next: Callable[[], None]) -> None:
         widget = QApplication.focusWidget()
@@ -224,8 +227,8 @@ class MacroKeyEvent(BaseMacroEvent):
 @dataclass
 class MacroMouseMoveEvent(BaseMacroEvent):
     positions: list[Position] = field(default_factory=list)
-    buttons: int = Qt.NoButton
-    modifiers: int = Qt.NoModifier
+    buttons: int = enum_value(Qt.MouseButton.NoButton)
+    modifiers: int = enum_value(Qt.KeyboardModifier.NoModifier)
 
     def add_position(self, position: Position) -> None:
         if self.positions and position == self.positions[-1]:
@@ -233,7 +236,7 @@ class MacroMouseMoveEvent(BaseMacroEvent):
         self.positions.append(position)
 
     def perform_event_action(self, schedule_next: Callable[[], None]) -> None:
-        if self.buttons != Qt.NoButton:
+        if self.buttons != enum_value(Qt.MouseButton.NoButton):
             self.perform_event_action_with_event()
             schedule_next()
             return
@@ -256,10 +259,10 @@ class MacroMouseMoveEvent(BaseMacroEvent):
             corrected_position = position.widget_corrected_position(widget)
             # Create and send mouse move events
             event = QMouseEvent(
-                QEvent.MouseMove,
+                QEvent.Type.MouseMove,
                 corrected_position.local_point,
                 corrected_position.global_point,
-                Qt.NoButton,
+                Qt.MouseButton.NoButton,
                 Qt.MouseButtons(self.buttons),
                 Qt.KeyboardModifiers(self.modifiers),
             )
@@ -297,8 +300,8 @@ class MacroMouseMoveEvent(BaseMacroEvent):
 class MacroMouseEvent(BaseMacroEvent):
     position: Position = default_position
     is_release: bool = False
-    button: int = Qt.LeftButton
-    modifiers: int = Qt.NoModifier
+    button: int = enum_value(Qt.MouseButton.LeftButton)
+    modifiers: int = enum_value(Qt.KeyboardModifier.NoModifier)
 
     def perform_event_action(self, schedule_next: Callable[[], None]) -> None:
         widget, corrected_position = self.get_widget_and_corrected_position(
@@ -352,8 +355,8 @@ class MacroWheelEvent(BaseMacroEvent):
             corrected_position.global_point,
             QPoint(0, self.delta),
             QPoint(0, self.delta),
-            Qt.NoButton,
-            Qt.NoModifier,
+            Qt.MouseButton.NoButton,
+            Qt.KeyboardModifier.NoModifier,
             self.phase,
             self.inverted,
             self.source,
@@ -376,8 +379,8 @@ class MacroWheelEvent(BaseMacroEvent):
 @dataclass
 class MacroMouseDoubleClickEvent(BaseMacroEvent):
     position: Position = default_position
-    button: int = Qt.LeftButton
-    modifiers: int = Qt.NoModifier
+    button: int = enum_value(Qt.MouseButton.LeftButton)
+    modifiers: int = enum_value(Qt.KeyboardModifier.NoModifier)
 
     def perform_event_action(self, schedule_next: Callable[[], None]) -> None:
         widget, corrected_position = self.get_widget_and_corrected_position(
