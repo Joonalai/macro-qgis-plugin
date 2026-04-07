@@ -33,6 +33,7 @@ from qgis_macros.macro import (
     MacroMouseMoveEvent,
     MacroWheelEvent,
     Position,
+    WidgetPath,
     WidgetSpec,
 )
 from qgis_macros.settings import Settings
@@ -181,6 +182,7 @@ class MacroRecorder(QObject):
             is_release=event.type() == QEvent.Type.KeyRelease,
             modifiers=enum_value(event.modifiers()),
             widget_spec=WidgetSpec.create(widget),
+            widget_path=WidgetPath.create(widget),
         )
 
         # Do not add if the last mouse button event was the same
@@ -206,6 +208,7 @@ class MacroRecorder(QObject):
             button=enum_value(event.button()),
             modifiers=enum_value(event.modifiers()),
             widget_spec=WidgetSpec.create(widget),
+            widget_path=WidgetPath.create(widget),
         )
 
         # Do not add if the last mouse button event was the same
@@ -233,6 +236,7 @@ class MacroRecorder(QObject):
                 button=enum_value(event.button()),
                 modifiers=enum_value(event.modifiers()),
                 widget_spec=WidgetSpec.create(widget),
+                widget_path=WidgetPath.create(widget),
             )
         )
 
@@ -250,6 +254,7 @@ class MacroRecorder(QObject):
                     positions=[current_position],
                     buttons=enum_value(event.buttons()),
                     modifiers=enum_value(event.modifiers()),
+                    widget_path=WidgetPath.create(widget),
                 )
             )
 
@@ -264,5 +269,6 @@ class MacroRecorder(QObject):
                 phase=event.phase(),
                 source=event.source(),
                 inverted=event.inverted(),
+                widget_path=WidgetPath.create(widget),
             )
         )

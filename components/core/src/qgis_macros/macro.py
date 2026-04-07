@@ -99,6 +99,104 @@ class WidgetSpec:
         raise WidgetNotFoundError(self.widget_class, self.text)
 
 
+@dataclass(frozen=True)
+class WidgetPathNode:
+    """A single node in a widget path, identifying a widget within its parent."""
+
+    widget_class: str
+    sibling_index: int
+    text: str = ""
+
+    def matches(self, widget: QWidget) -> bool:
+        return (
+            widget.__class__.__name__ == self.widget_class
+            and self.text == utils.get_widget_text(widget)
+        )
+
+
+@dataclass
+class WidgetPath:
+    """
+    Path from a top-level window down to a target widget.
+
+    Each node identifies a widget by its class name, text, and index
+    among same-class siblings. This allows reliable widget lookup even
+    when widgets lack objectNames or shift position on screen.
+    """
+
+    window_title: str
+    nodes: list[WidgetPathNode]
+    is_map_canvas: bool = False
+
+    @staticmethod
+    def create(widget: QWidget) -> "WidgetPath":
+        is_map_canvas = utils.is_object_map_canvas(widget)
+        nodes: list[WidgetPathNode] = []
+        current = widget
+        while current is not None:
+            if current.isWindow():
+                window_title = current.windowTitle()
+                nodes.reverse()
+                return WidgetPath(window_title, nodes, is_map_canvas)
+            parent = current.parentWidget()
+            if parent is not None:
+                sibling_index = utils.get_sibling_index(current, parent)
+                nodes.append(
+                    WidgetPathNode(
+                        widget_class=current.__class__.__name__,
+                        sibling_index=sibling_index,
+                        text=utils.get_widget_text(current),
+                    )
+                )
+            current = parent
+        return WidgetPath("", nodes, is_map_canvas)
+
+    def find_widget(self) -> QWidget | None:
+        """Walk the path from the top-level window to find the target widget."""
+        window = self._find_window()
+        if window is None:
+            return None
+
+        current = window
+        for node in self.nodes:
+            child = self._find_child(current, node)
+            if child is None:
+                return None
+            current = child
+        return current
+
+    def _find_window(self) -> QWidget | None:
+        for widget in QApplication.topLevelWidgets():
+            if widget.isVisible() and widget.windowTitle() == self.window_title:
+                return widget
+        return None
+
+    @staticmethod
+    def _find_child(parent: QWidget, node: WidgetPathNode) -> QWidget | None:
+        same_class_children = [
+            child
+            for child in parent.findChildren(QWidget)
+            if child.__class__.__name__ == node.widget_class
+            and child.parentWidget() is parent
+        ]
+        # First try exact match by sibling index and text
+        if node.sibling_index < len(same_class_children):
+            candidate = same_class_children[node.sibling_index]
+            if node.matches(candidate):
+                return candidate
+
+        # Fallback: find by text match among same-class siblings
+        if node.text:
+            for child in same_class_children:
+                if node.matches(child):
+                    return child
+
+        # Last resort: return by index alone
+        if node.sibling_index < len(same_class_children):
+            return same_class_children[node.sibling_index]
+        return None
+
+
 class MacroEvent(Protocol):
     """Single macro event for Macros."""
 
@@ -192,6 +290,7 @@ class BaseMacroEvent(ABC):
 
     widget_spec: WidgetSpec
     ms_since_last_event: int = 0
+    widget_path: WidgetPath | None = None
 
     @staticmethod
     def move_cursor(position: tuple[int, int] | QPoint) -> None:
@@ -201,11 +300,26 @@ class BaseMacroEvent(ABC):
         QCursor.setPos(position)
         QgsApplication.processEvents()
 
+    def _use_coordinate_lookup(self) -> bool:
+        """Check if this event targets the map canvas and should use coordinates."""
+        return self.widget_path is not None and self.widget_path.is_map_canvas
+
     def get_widget(self, position: Position) -> QWidget:
         """Resolve the target widget at *position*.
 
         Fall back to a spec-based search if the widget at *position* does not match.
         """
+        # Try widget path lookup first (unless targeting map canvas)
+        if self.widget_path is not None and not self._use_coordinate_lookup():
+            widget = self.widget_path.find_widget()
+            if widget is not None:
+                widget.setFocus()
+                return widget
+            LOGGER.debug(
+                "Widget path lookup failed, falling back to position-based lookup"
+            )
+
+        # Fallback: position-based lookup
         global_point = position.global_point
         widget = QApplication.widgetAt(global_point)
         if not widget:
@@ -530,6 +644,21 @@ class Macro:
                     for position_ in positions_
                 ]
                 event_data["positions"] = positions
+            widget_path_data = event_data.pop("widget_path", None)
+            if widget_path_data is not None:
+                nodes = [
+                    WidgetPathNode(
+                        widget_class=node["widget_class"],
+                        sibling_index=node["sibling_index"],
+                        text=node.get("text", ""),
+                    )
+                    for node in widget_path_data["nodes"]
+                ]
+                event_data["widget_path"] = WidgetPath(
+                    window_title=widget_path_data["window_title"],
+                    nodes=nodes,
+                    is_map_canvas=widget_path_data.get("is_map_canvas", False),
+                )
 
             event_cls = globals()[class_name]
             event = event_cls(**event_data)

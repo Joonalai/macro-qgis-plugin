@@ -48,6 +48,20 @@ def get_widget_text(widget: QWidget) -> str:
     return text or widget.objectName()
 
 
+def get_sibling_index(widget: QWidget, parent: QWidget) -> int:
+    """Get the index of a widget among its same-class siblings in the parent."""
+    widget_class = widget.__class__.__name__
+    same_class_siblings = [
+        child
+        for child in parent.findChildren(QWidget)
+        if child.__class__.__name__ == widget_class and child.parentWidget() is parent
+    ]
+    for i, sibling in enumerate(same_class_siblings):
+        if sibling is widget:
+            return i
+    return 0
+
+
 def find_nearest_visible_children_of_type(
     target_point: QPoint, parent_widget: QWidget, widget_class: str
 ) -> Iterator[QWidget]:
