@@ -23,7 +23,7 @@ import pytest
 from macro_plugin.ui.macro_model import MacroTableModel
 from macro_plugin.ui.macro_panel import MACRO_GROUP, MacroPanel, QgsApplication
 from qgis.PyQt.QtCore import QModelIndex, Qt
-from qgis.PyQt.QtWidgets import QInputDialog, QToolButton
+from qgis.PyQt.QtWidgets import QToolButton
 from qgis_macros.macro import Macro
 from qgis_macros.macro_player import MacroPlayer
 from qgis_macros.macro_recorder import MacroRecorder
@@ -34,13 +34,11 @@ if TYPE_CHECKING:
     from pytest_subtests import SubTests
     from pytestqt.qtbot import QtBot
 
-MACRO_NAME = "Test macro"
-
 
 @pytest.fixture
 def mock_macro(mocker: "MockerFixture") -> MagicMock:
     mock_macro = mocker.create_autospec(Macro, instance=True)
-    mock_macro.name = MACRO_NAME
+    mock_macro.name = None
     return mock_macro
 
 
@@ -65,16 +63,10 @@ def mock_macro_player(mocker: "MockerFixture", mock_macro: "MagicMock") -> "Magi
 
 
 @pytest.fixture
-def mock_input_dialog(mocker: "MockerFixture") -> "MagicMock":
-    return mocker.patch.object(QInputDialog, "getText", return_value=(MACRO_NAME, True))
-
-
-@pytest.fixture
 def macro_panel(
     mock_macro_recorder: "MagicMock",
     mock_macro_player: "MagicMock",
     qtbot: "QtBot",
-    mock_input_dialog: "MagicMock",
 ) -> Iterator[MacroPanel]:
     panel = MacroPanel(mock_macro_recorder, mock_macro_player)
     panel.setFixedSize(200, 300)
@@ -140,8 +132,8 @@ def test_macro_panel_initialization(
 def test_macro_panel_toggle_recording(
     macro_panel: MacroPanel,
     macro_model: MacroTableModel,
-    mock_input_dialog: "MagicMock",
     mock_macro_recorder: "MagicMock",
+    mock_macro: "MagicMock",
     qtbot: "QtBot",
     subtests: "SubTests",
 ) -> None:
@@ -160,7 +152,8 @@ def test_macro_panel_toggle_recording(
         # Assert
         mock_macro_recorder.stop_recording.assert_called_once()
         assert not macro_panel.button_record.isChecked()
-        mock_input_dialog.assert_called_once()
+        assert mock_macro.name == "macro_1"
+        assert macro_model.macros == [mock_macro]
 
 
 @pytest.mark.usefixtures("record_macro")
@@ -172,10 +165,8 @@ def test_macro_panel_recording_should_add_macro_to_table(
 ) -> None:
     assert macro_model.macros == [mock_macro]
     assert macro_model.rowCount(mock_index) == 1
-    # Not enabled yet since no macro is selected from table
-    assert not macro_panel.table_view.selectedIndexes()
-    assert not macro_panel.button_play.isEnabled()
-    assert not macro_panel.button_delete.isEnabled()
+    # Macro should be selected after recording
+    assert macro_panel.table_view.currentIndex() == macro_model.index(0, 0)
 
 
 @pytest.mark.usefixtures("record_macro", "set_macro_selected")
@@ -186,6 +177,30 @@ def test_selecting_macro_should_make_macro_buttons_enabled(
     assert macro_panel.table_view.selectedIndexes() == [macro_model.index(0, 0)]
     assert macro_panel.button_play.isEnabled()
     assert macro_panel.button_delete.isEnabled()
+
+
+def test_macro_panel_generates_incremental_names(
+    macro_panel: MacroPanel,
+    macro_model: MacroTableModel,
+    mock_macro_recorder: "MagicMock",
+    mocker: "MockerFixture",
+    qtbot: "QtBot",
+) -> None:
+    mock_macro_1 = mocker.create_autospec(Macro, instance=True)
+    mock_macro_1.name = None
+    mock_macro_2 = mocker.create_autospec(Macro, instance=True)
+    mock_macro_2.name = None
+    mock_macro_recorder.stop_recording.side_effect = [mock_macro_1, mock_macro_2]
+
+    # Record first macro
+    qtbot.mouseClick(macro_panel.button_record, Qt.MouseButton.LeftButton)
+    qtbot.mouseClick(macro_panel.button_record, Qt.MouseButton.LeftButton)
+    assert mock_macro_1.name == "macro_1"
+
+    # Record second macro
+    qtbot.mouseClick(macro_panel.button_record, Qt.MouseButton.LeftButton)
+    qtbot.mouseClick(macro_panel.button_record, Qt.MouseButton.LeftButton)
+    assert mock_macro_2.name == "macro_2"
 
 
 @pytest.mark.usefixtures("record_macro", "set_macro_selected")

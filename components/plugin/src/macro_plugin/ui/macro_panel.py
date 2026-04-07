@@ -27,7 +27,6 @@ from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import (
     QFileDialog,
     QHeaderView,
-    QInputDialog,
     QTableView,
     QToolButton,
     QWidget,
@@ -146,18 +145,20 @@ class MacroPanel(UI_CLASS, QgsDevToolWidget):  # type: ignore
         """Check if there are selected macros available for operations."""
         return bool(self._model.macros and self.table_view.selectedIndexes())
 
+    def _generate_macro_name(self) -> str:
+        return f"macro_{len(self._model.macros) + 1}"
+
     def _toggle_recording(self) -> None:
         if not self._recorder.is_recording():
             self._recorder.start_recording()
         else:
             macro = self._recorder.stop_recording()
+            macro.name = self._generate_macro_name()
+            self._model.add_macro(macro)
 
-            name, ok = QInputDialog.getText(
-                self, tr("Macro Name"), tr("Enter the name of the macro:")
-            )
-            if ok:
-                macro.name = name
-                self._model.add_macro(macro)
+            new_index = self._model.index(len(self._model.macros) - 1, 0)
+            self.table_view.setCurrentIndex(new_index)
+            self.table_view.edit(new_index)
         self._update_ui_state()
 
     def _play_macro(self) -> None:
