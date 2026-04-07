@@ -33,6 +33,8 @@
 #
 #  You should have received a copy of the GNU General Public License
 #  along with profiler-qgis-plugin. If not, see <https://www.gnu.org/licenses/>.
+"""Settings dialog for configuring macro plugin options and logging levels."""
+
 import logging
 from pathlib import Path
 
@@ -71,9 +73,9 @@ LOGGING_LEVELS = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 
 
 class SettingsDialog(QDialog, UI_CLASS):  # type: ignore
-    """
-    This file is originally adapted from
-    https://github.com/nlsfi/pickLayer licensed under GPL version 3
+    """Dialog for editing plugin settings and logging levels.
+
+    Originally adapted from https://github.com/nlsfi/pickLayer (GPL v3).
     """
 
     layout_setting_items: QVBoxLayout
@@ -82,6 +84,7 @@ class SettingsDialog(QDialog, UI_CLASS):  # type: ignore
     button_box: QDialogButtonBox
 
     def __init__(self, parent: QWidget | None = None) -> None:
+        """Initialize the dialog and populate settings widgets."""
         super().__init__(parent)
         self.setupUi(self)
         self.setWindowIcon(QgsApplication.getThemeIcon("/propertyicons/settings.svg"))
@@ -117,7 +120,7 @@ class SettingsDialog(QDialog, UI_CLASS):  # type: ignore
             self._add_setting(setting)
 
     def _add_setting(self, setting: Settings) -> None:
-        """Adds a widget to the appropriate group box based on the category."""
+        """Add a widget to the appropriate group box based on the category."""
         setting_meta = setting.value
         widget_type = setting_meta.widget_type
         widget_config = setting_meta.widget_config

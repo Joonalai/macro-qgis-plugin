@@ -15,6 +15,8 @@
 #
 #  You should have received a copy of the GNU General Public License
 #  along with macro-qgis-plugin. If not, see <https://www.gnu.org/licenses/>.
+"""Qt table model for displaying macros in the macro panel."""
+
 from typing import ClassVar
 
 from qgis.PyQt.QtCore import NULL, QAbstractTableModel, QModelIndex, Qt, QVariant
@@ -23,13 +25,17 @@ from qgis_plugin_tools.tools.i18n import tr
 
 
 class MacroTableModel(QAbstractTableModel):
+    """Table model for a list of :class:`~qgis_macros.macro.Macro` objects."""
+
     headers: ClassVar[dict[int, str]] = {0: tr("Macro")}
 
     def __init__(self) -> None:
+        """Initialize the model with an empty macro list."""
         super().__init__()
         self.macros: list[Macro] = []
 
     def add_macro(self, macro: Macro) -> None:
+        """Append a macro and notify attached views."""
         row = len(self.macros)
         self.beginInsertRows(QModelIndex(), row, row)
 
@@ -39,23 +45,25 @@ class MacroTableModel(QAbstractTableModel):
         self.endInsertRows()
 
     def remove_macro(self, row: int) -> None:
+        """Remove the macro at *row* and notify attached views."""
         self.beginRemoveRows(QModelIndex(), row, row)
         self.macros.pop(row)
         self.endRemoveRows()
 
     def reset_macros(self, macros: list[Macro]) -> None:
+        """Replace the entire macro list and reset the model."""
         self.beginResetModel()
         self.macros = macros
         self.endResetModel()
 
-    def rowCount(self, parent: QModelIndex) -> int:  # noqa: N802
+    def rowCount(self, parent: QModelIndex) -> int:  # noqa: N802, D102
         valid = parent.isValid()
         return 0 if valid else len(self.macros)
 
-    def columnCount(self, parent: QModelIndex) -> int:  # noqa: N802
+    def columnCount(self, parent: QModelIndex) -> int:  # noqa: N802, D102
         return 0 if parent.isValid() else len(self.headers)
 
-    def headerData(  # noqa: N802
+    def headerData(  # noqa: N802, D102
         self,
         section: int,
         orientation: Qt.Orientation,
@@ -73,7 +81,7 @@ class MacroTableModel(QAbstractTableModel):
             return Qt.AlignmentFlag.AlignLeft
         return NULL
 
-    def data(
+    def data(  # noqa: D102
         self, index: QModelIndex, role: Qt.ItemDataRole = Qt.ItemDataRole.DisplayRole
     ) -> QVariant:
         row = index.row()

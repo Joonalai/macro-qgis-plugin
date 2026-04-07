@@ -15,6 +15,8 @@
 #
 #  You should have received a copy of the GNU General Public License
 #  along with macro-qgis-plugin. If not, see <https://www.gnu.org/licenses/>.
+"""Event filter-based macro recorder that captures user interactions."""
+
 from typing import cast
 
 from qgis.PyQt.QtCore import QElapsedTimer, QEvent, QObject
@@ -38,8 +40,7 @@ from qgis_macros.utils import enum_value
 
 
 class MacroRecorder(QObject):
-    """
-    Manages recording of user actions like mouse and keyboard events.
+    """Manages recording of user actions like mouse and keyboard events.
 
     Tracks and collects events during a recording session, allowing
     filtered or unfiltered playback of these events for automation.
@@ -49,6 +50,13 @@ class MacroRecorder(QObject):
         self,
         filter_out_mouse_movements: bool = True,  # noqa: FBT001, FBT002
     ) -> None:
+        """Initialize the recorder.
+
+        Args:
+            filter_out_mouse_movements: If True, leading/trailing mouse
+                move events are trimmed from the recording.
+
+        """
         super().__init__(None)
         self._recorded_events: list[MacroEvent] = []
         self._timer = QElapsedTimer()
@@ -73,8 +81,7 @@ class MacroRecorder(QObject):
         QApplication.instance().installEventFilter(self)
 
     def stop_recording(self) -> Macro:
-        """
-        Stop recording user actions.
+        """Stop recording user actions.
 
         :return: New Macro object with recorded events
         """

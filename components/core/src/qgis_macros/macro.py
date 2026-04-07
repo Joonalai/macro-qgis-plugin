@@ -15,6 +15,22 @@
 #
 #  You should have received a copy of the GNU General Public License
 #  along with macro-qgis-plugin. If not, see <https://www.gnu.org/licenses/>.
+"""Macro data structures for recording and playing back user interactions.
+
+This module defines the core event types (key, mouse, wheel) and the
+:class:`Macro` container that serializes/deserializes recorded sessions.
+
+Example usage::
+
+    from qgis_macros.macro import Macro
+
+    # Deserialize a macro from a dict (e.g. loaded from JSON)
+    macro = Macro.deserialize(data)
+
+    # Serialize back
+    data = macro.serialize()
+"""
+
 import dataclasses
 import logging
 from abc import ABC, abstractmethod
@@ -41,14 +57,18 @@ LOGGER = logging.getLogger(__name__)
 
 @dataclass
 class WidgetSpec:
+    """Identify a widget by its class name and display text."""
+
     widget_class: str
     text: str = ""
 
     @staticmethod
     def create(widget: QWidget) -> "WidgetSpec":
+        """Create a WidgetSpec from an existing widget."""
         return WidgetSpec(widget.__class__.__name__, utils.get_widget_text(widget))
 
     def matches(self, widget: QWidget) -> bool:
+        """Return True if *widget* matches this spec's class and text."""
         return (
             widget.__class__.__name__ == self.widget_class
             and self.text == utils.get_widget_text(widget)
@@ -57,6 +77,15 @@ class WidgetSpec:
     def get_suitable_widget(
         self, point: QPoint, widget: QWidget, level: int = 1
     ) -> QWidget:
+        """Find the nearest child widget matching this spec.
+
+        Walk up the widget hierarchy (up to ``MAXIMUM_PARENT_DEPTH`` levels)
+        searching for a visible child whose class and text match.
+
+        Raises:
+            WidgetNotFoundError: If no matching widget is found.
+
+        """
         nearest_candidates = utils.find_nearest_visible_children_of_type(
             point, widget, self.widget_class
         )
@@ -71,24 +100,25 @@ class WidgetSpec:
 
 
 class MacroEvent(Protocol):
-    """Single macro event for Macros"""
+    """Single macro event for Macros."""
 
     ms_since_last_event: int
 
     def perform_event_action(self, schedule_next: Callable[[], None]) -> None:
-        """
-        Perform macro event action (e.g., moving mouse, clicking widget)
-        """
+        """Perform macro event action (e.g., moving mouse, clicking widget)."""
         ...
 
 
 @dataclass(frozen=True)
 class Position:
+    """Screen position represented as local and global coordinate pairs."""
+
     local_position: tuple[int, int]
     global_position: tuple[int, int]
 
     @staticmethod
     def from_event(event: QMouseEvent | QWheelEvent) -> "Position":
+        """Create a Position from a Qt mouse or wheel event."""
         position = utils.event_pos(event)
         global_position = utils.event_global_pos(event)
         return Position(
@@ -98,6 +128,7 @@ class Position:
 
     @staticmethod
     def from_points(local_point: QPoint, global_point: QPoint) -> "Position":
+        """Create a Position from local and global QPoint objects."""
         return Position(
             (local_point.x(), local_point.y()),
             (global_point.x(), global_point.y()),
@@ -107,6 +138,7 @@ class Position:
     def interpolate(
         positions: list["Position"], number_of_positions: int
     ) -> list["Position"]:
+        """Reduce *positions* to *number_of_positions* by linear interpolation."""
         if len(positions) <= number_of_positions:
             return positions
 
@@ -136,13 +168,16 @@ class Position:
 
     @property
     def local_point(self) -> QPoint:
+        """Return the local position as a QPoint."""
         return QPoint(*self.local_position)
 
     @property
     def global_point(self) -> QPoint:
+        """Return the global position as a QPoint."""
         return QPoint(*self.global_position)
 
     def widget_corrected_position(self, widget: QWidget) -> "Position":
+        """Return a new Position corrected for the widget's current screen location."""
         return Position.from_points(
             self.local_point, widget.mapToGlobal(self.local_point)
         )
@@ -153,17 +188,24 @@ default_position = Position((0, 0), (0, 0))
 
 @dataclass
 class BaseMacroEvent(ABC):
+    """Base class for all macro events."""
+
     widget_spec: WidgetSpec
     ms_since_last_event: int = 0
 
     @staticmethod
     def move_cursor(position: tuple[int, int] | QPoint) -> None:
+        """Move the mouse cursor to the given screen position."""
         if not isinstance(position, QPoint):
             position = QPoint(*position)
         QCursor.setPos(position)
         QgsApplication.processEvents()
 
     def get_widget(self, position: Position) -> QWidget:
+        """Resolve the target widget at *position*.
+
+        Fall back to a spec-based search if the widget at *position* does not match.
+        """
         global_point = position.global_point
         widget = QApplication.widgetAt(global_point)
         if not widget:
@@ -179,14 +221,17 @@ class BaseMacroEvent(ABC):
     def get_widget_and_corrected_position(
         self, position: Position
     ) -> tuple[QWidget, Position]:
+        """Return the target widget and a screen-corrected position."""
         widget = self.get_widget(position)
         corrected_position = position.widget_corrected_position(widget)
         return widget, corrected_position
 
     @abstractmethod
-    def perform_event_action(self, schedule_next: Callable[[], None]) -> None: ...
+    def perform_event_action(self, schedule_next: Callable[[], None]) -> None:
+        """Execute the event action and call *schedule_next* when done."""
+        ...
 
-    def __eq__(self, other: object) -> bool:
+    def __eq__(self, other: object) -> bool:  # noqa: D105
         if not isinstance(other, BaseMacroEvent):
             return NotImplemented
 
@@ -195,11 +240,14 @@ class BaseMacroEvent(ABC):
 
 @dataclass
 class MacroKeyEvent(BaseMacroEvent):
+    """Keyboard press or release event."""
+
     key: int = 0
     is_release: bool = False
     modifiers: int = enum_value(Qt.KeyboardModifier.NoModifier)
 
     def perform_event_action(self, schedule_next: Callable[[], None]) -> None:
+        """Replay the key press or release on the currently focused widget."""
         widget = QApplication.focusWidget()
         QgsApplication.processEvents()
         # TODO: shift is not working
@@ -213,7 +261,7 @@ class MacroKeyEvent(BaseMacroEvent):
                 widget, Qt.Key(self.key), Qt.KeyboardModifiers(self.modifiers)
             )
 
-    def __eq__(self, other: object) -> bool:
+    def __eq__(self, other: object) -> bool:  # noqa: D105
         if not isinstance(other, MacroKeyEvent):
             return NotImplemented
         return super().__eq__(other) and (
@@ -226,16 +274,20 @@ class MacroKeyEvent(BaseMacroEvent):
 
 @dataclass
 class MacroMouseMoveEvent(BaseMacroEvent):
+    """Mouse movement event containing a sequence of positions."""
+
     positions: list[Position] = field(default_factory=list)
     buttons: int = enum_value(Qt.MouseButton.NoButton)
     modifiers: int = enum_value(Qt.KeyboardModifier.NoModifier)
 
     def add_position(self, position: Position) -> None:
+        """Append a position, ignoring duplicates of the last position."""
         if self.positions and position == self.positions[-1]:
             return
         self.positions.append(position)
 
     def perform_event_action(self, schedule_next: Callable[[], None]) -> None:
+        """Replay the mouse movement along the recorded positions."""
         if self.buttons != enum_value(Qt.MouseButton.NoButton):
             self.perform_event_action_with_event()
             schedule_next()
@@ -251,6 +303,7 @@ class MacroMouseMoveEvent(BaseMacroEvent):
         return
 
     def perform_event_action_with_event(self) -> None:
+        """Replay movement by posting QMouseEvent objects (when buttons are held)."""
         if not self.positions:
             return
         widget = self.get_widget(self.positions[0])
@@ -273,7 +326,7 @@ class MacroMouseMoveEvent(BaseMacroEvent):
         """Interpolate the positions to a given number of positions."""
         self.positions = Position.interpolate(self.positions, number_of_positions)
 
-    def __eq__(self, other: object) -> bool:
+    def __eq__(self, other: object) -> bool:  # noqa: D105
         if not isinstance(other, MacroMouseMoveEvent):
             return NotImplemented
         return super().__eq__(other) and (
@@ -282,7 +335,7 @@ class MacroMouseMoveEvent(BaseMacroEvent):
             and self.modifiers == other.modifiers
         )
 
-    def __repr__(self) -> str:
+    def __repr__(self) -> str:  # noqa: D105
         if len(self.positions) == 1:
             positions = self.positions
         else:
@@ -298,12 +351,15 @@ class MacroMouseMoveEvent(BaseMacroEvent):
 
 @dataclass
 class MacroMouseEvent(BaseMacroEvent):
+    """Mouse button press or release event."""
+
     position: Position = default_position
     is_release: bool = False
     button: int = enum_value(Qt.MouseButton.LeftButton)
     modifiers: int = enum_value(Qt.KeyboardModifier.NoModifier)
 
     def perform_event_action(self, schedule_next: Callable[[], None]) -> None:
+        """Replay the mouse press or release at the recorded position."""
         widget, corrected_position = self.get_widget_and_corrected_position(
             self.position
         )
@@ -325,7 +381,7 @@ class MacroMouseEvent(BaseMacroEvent):
                 corrected_position.local_point,
             )
 
-    def __eq__(self, other: object) -> bool:
+    def __eq__(self, other: object) -> bool:  # noqa: D105
         if not isinstance(other, MacroMouseEvent):
             return NotImplemented
         return super().__eq__(other) and (
@@ -338,6 +394,8 @@ class MacroMouseEvent(BaseMacroEvent):
 
 @dataclass
 class MacroWheelEvent(BaseMacroEvent):
+    """Mouse wheel scroll event."""
+
     position: Position = default_position
     delta: int = 0
     phase: int = 0
@@ -345,6 +403,7 @@ class MacroWheelEvent(BaseMacroEvent):
     source: int = 0
 
     def perform_event_action(self, schedule_next: Callable[[], None]) -> None:
+        """Replay the wheel scroll at the recorded position."""
         widget, corrected_position = self.get_widget_and_corrected_position(
             self.position
         )
@@ -364,7 +423,7 @@ class MacroWheelEvent(BaseMacroEvent):
         QApplication.postEvent(widget, event)
         QApplication.processEvents()
 
-    def __eq__(self, other: object) -> bool:
+    def __eq__(self, other: object) -> bool:  # noqa: D105
         if not isinstance(other, MacroWheelEvent):
             return NotImplemented
         return super().__eq__(other) and (
@@ -378,11 +437,14 @@ class MacroWheelEvent(BaseMacroEvent):
 
 @dataclass
 class MacroMouseDoubleClickEvent(BaseMacroEvent):
+    """Mouse double-click event."""
+
     position: Position = default_position
     button: int = enum_value(Qt.MouseButton.LeftButton)
     modifiers: int = enum_value(Qt.KeyboardModifier.NoModifier)
 
     def perform_event_action(self, schedule_next: Callable[[], None]) -> None:
+        """Replay the double-click at the recorded position."""
         widget, corrected_position = self.get_widget_and_corrected_position(
             self.position
         )
@@ -395,7 +457,7 @@ class MacroMouseDoubleClickEvent(BaseMacroEvent):
             corrected_position.local_point,
         )
 
-    def __eq__(self, other: object) -> bool:
+    def __eq__(self, other: object) -> bool:  # noqa: D105
         if not isinstance(other, MacroMouseDoubleClickEvent):
             return NotImplemented
         return super().__eq__(other) and (
@@ -407,12 +469,31 @@ class MacroMouseDoubleClickEvent(BaseMacroEvent):
 
 @dataclass
 class Macro:
+    """A recorded sequence of user interaction events.
+
+    Example::
+
+        import json
+        from pathlib import Path
+
+        from qgis_macros.macro import Macro
+
+        # Load macros from a JSON file
+        with Path("macros.json").open() as f:
+            data = json.load(f)
+        macros = [Macro.deserialize(d) for d in data]
+
+        # Serialize macros back to JSON
+        serialized = [m.serialize() for m in macros]
+    """
+
     events: list[MacroEvent]
     name: str | None = None
     speed: float = 1.0
     qgis_version: int = Qgis.versionInt()
 
     def serialize(self) -> dict:
+        """Serialize the macro to a JSON-compatible dict."""
         events: list[dict] = []
         data = {
             "name": self.name,
@@ -429,6 +510,7 @@ class Macro:
 
     @classmethod
     def deserialize(cls, data: dict) -> "Macro":
+        """Construct a Macro from a dict previously produced by :meth:`serialize`."""
         events = []
         for event_data in data["events"]:
             class_name = event_data.pop("type")

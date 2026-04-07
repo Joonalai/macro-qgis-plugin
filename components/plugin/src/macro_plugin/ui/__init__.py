@@ -15,3 +15,4 @@
 #
 #  You should have received a copy of the GNU General Public License
 #  along with macro-qgis-plugin. If not, see <https://www.gnu.org/licenses/>.
+"""UI components for the macro plugin."""
