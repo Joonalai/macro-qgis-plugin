@@ -81,6 +81,12 @@ class MacroTableModel(QAbstractTableModel):
             return Qt.AlignmentFlag.AlignLeft
         return NULL
 
+    def flags(self, index: QModelIndex) -> Qt.ItemFlag:
+        default_flags = super().flags(index)
+        if index.isValid():
+            return default_flags | Qt.ItemFlag.ItemIsEditable
+        return default_flags
+
     def data(  # noqa: D102
         self, index: QModelIndex, role: Qt.ItemDataRole = Qt.ItemDataRole.DisplayRole
     ) -> QVariant:
@@ -89,7 +95,27 @@ class MacroTableModel(QAbstractTableModel):
             return NULL
         if role == Qt.ItemDataRole.TextAlignmentRole:
             return Qt.AlignmentFlag.AlignLeft
-        if role in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.ToolTipRole):
+        if role in (
+            Qt.ItemDataRole.DisplayRole,
+            Qt.ItemDataRole.ToolTipRole,
+            Qt.ItemDataRole.EditRole,
+        ):
             return QVariant(self.macros[row].name)
 
         return NULL
+
+    def setData(  # noqa: N802
+        self,
+        index: QModelIndex,
+        value: str,
+        role: Qt.ItemDataRole = Qt.ItemDataRole.EditRole,
+    ) -> bool:
+        if not index.isValid() or role != Qt.ItemDataRole.EditRole:
+            return False
+        row = index.row()
+        name = value.strip()
+        if not name:
+            return False
+        self.macros[row].name = name
+        self.dataChanged.emit(index, index, [role])
+        return True

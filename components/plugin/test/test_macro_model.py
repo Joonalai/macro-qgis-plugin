@@ -116,3 +116,49 @@ def test_macro_table_model_data_tooltip_role(mocker: "MockerFixture") -> None:
     index = model.index(0, 0)
 
     assert model.data(index, Qt.ItemDataRole.ToolTipRole) == "Tooltip Macro"
+
+
+def test_macro_table_model_flags_editable(mocker: "MockerFixture") -> None:
+    model = MacroTableModel()
+    macro_mock = mocker.Mock(spec=Macro)
+    macro_mock.name = "Editable Macro"
+    model.add_macro(macro_mock)
+
+    index = model.index(0, 0)
+    flags = model.flags(index)
+
+    assert flags & Qt.ItemFlag.ItemIsEditable
+
+
+def test_macro_table_model_set_data(mocker: "MockerFixture") -> None:
+    model = MacroTableModel()
+    macro_mock = mocker.Mock(spec=Macro)
+    macro_mock.name = "Old Name"
+    model.add_macro(macro_mock)
+
+    index = model.index(0, 0)
+    result = model.setData(index, "New Name", Qt.ItemDataRole.EditRole)
+
+    assert result is True
+    assert macro_mock.name == "New Name"
+
+
+def test_macro_table_model_set_data_rejects_empty(mocker: "MockerFixture") -> None:
+    model = MacroTableModel()
+    macro_mock = mocker.Mock(spec=Macro)
+    macro_mock.name = "Keep This"
+    model.add_macro(macro_mock)
+
+    index = model.index(0, 0)
+    result = model.setData(index, "   ", Qt.ItemDataRole.EditRole)
+
+    assert result is False
+    assert macro_mock.name == "Keep This"
+
+
+def test_macro_table_model_set_data_invalid_index() -> None:
+    model = MacroTableModel()
+
+    result = model.setData(QModelIndex(), "Name", Qt.ItemDataRole.EditRole)
+
+    assert result is False
