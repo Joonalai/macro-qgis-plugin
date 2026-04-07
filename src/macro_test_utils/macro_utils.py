@@ -15,7 +15,6 @@
 #
 #  You should have received a copy of the GNU General Public License
 #  along with macro-qgis-plugin. If not, see <https://www.gnu.org/licenses/>.
-from typing import Optional
 
 from qgis.PyQt.QtCore import Qt
 
@@ -36,12 +35,12 @@ Helper functions to create macro events for testing
 
 def widget_clicking_macro_events(
     widget: WidgetInfo,
-    position: Optional[Position] = None,
+    position: Position | None = None,
     elapsed: tuple[int, int] = (0, 0),
     modifiers: int = Qt.NoModifier,
     button: int = Qt.LeftButton,
 ) -> list[MacroEvent]:
-    position = position if position else widget.position
+    position = position or widget.position
     return [
         MacroMouseEvent(
             widget_spec=widget.widget_spec,
@@ -97,11 +96,11 @@ def key_macro_events(
 
 def mouse_move_macro_event(
     widget: WidgetInfo,
-    positions: Optional[list[Position]] = None,
+    positions: list[Position] | None = None,
     elapsed: int = 0,
     modifiers: int = Qt.NoModifier,
 ) -> MacroEvent:
-    positions = positions if positions else [widget.position]
+    positions = positions or [widget.position]
     return MacroMouseMoveEvent(
         widget_spec=widget.widget_spec,
         ms_since_last_event=elapsed,

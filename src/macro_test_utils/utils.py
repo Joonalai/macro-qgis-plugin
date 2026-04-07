@@ -19,7 +19,7 @@
 import dataclasses
 import time
 from functools import partial
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from qgis.core import QgsApplication
 from qgis.PyQt.QtCore import QEvent, QObject, QPoint, pyqtSignal
@@ -43,7 +43,7 @@ if TYPE_CHECKING:
 
 
 class Dialog(QDialog):
-    def __init__(self, parent: Optional[QWidget] = None) -> None:
+    def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         layout = QVBoxLayout()
 
@@ -95,13 +95,13 @@ class WidgetInfo:
 
     @property
     def widget_spec(self) -> "WidgetSpec":
-        from qgis_macros.macro import WidgetSpec
+        from qgis_macros.macro import WidgetSpec  # noqa: PLC0415
 
         return WidgetSpec.create(self.widget)
 
     @staticmethod
     def from_widget(name: str, widget: QWidget) -> "WidgetInfo":
-        from qgis_macros.macro import Position
+        from qgis_macros.macro import Position  # noqa: PLC0415
 
         geometry = widget.geometry()
         local_center = QPoint(geometry.width() // 2, geometry.height() // 2)

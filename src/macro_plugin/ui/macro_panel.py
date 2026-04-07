@@ -17,7 +17,7 @@
 #  along with macro-qgis-plugin. If not, see <https://www.gnu.org/licenses/>.
 import json
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from qgis.core import QgsApplication
 from qgis.gui import QgsDevToolWidget, QgsDevToolWidgetFactory
@@ -73,7 +73,7 @@ class MacroPanel(UI_CLASS, QgsDevToolWidget):  # type: ignore
         self,
         macro_recorder: MacroRecorder,
         macro_player: MacroPlayer,
-        parent: Optional[QWidget] = None,
+        parent: QWidget | None = None,
     ) -> None:
         """
         :param macro_recorder: Instance of MacroRecorder to handle macro
@@ -256,5 +256,5 @@ class MacroToolFactory(QgsDevToolWidgetFactory):
             QgsApplication.getThemeIcon("/mActionRecord.svg"),
         )
 
-    def createWidget(self, parent: Optional[QWidget] = None) -> MacroPanel:  # noqa: N802
+    def createWidget(self, parent: QWidget | None = None) -> MacroPanel:  # noqa: N802
         return MacroPanel(MacroRecorder(), MacroPlayer(Settings.speed.get()), parent)

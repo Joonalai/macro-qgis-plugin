@@ -18,7 +18,6 @@
 import enum
 import logging
 from dataclasses import dataclass
-from typing import Optional
 
 from qgis.core import QgsApplication
 from qgis.PyQt.QtCore import QElapsedTimer, QObject, QTimer, pyqtSignal
@@ -39,7 +38,7 @@ class MacroPlaybackStatus(enum.Enum):
 @dataclass
 class MacroPlaybackReport:
     status: MacroPlaybackStatus = MacroPlaybackStatus.SUCCESS
-    error: Optional[Exception] = None
+    error: Exception | None = None
 
     def __post_init__(self) -> None:
         if self.status == MacroPlaybackStatus.FAILURE and self.error is None:

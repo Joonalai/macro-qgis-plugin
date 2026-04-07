@@ -50,8 +50,8 @@ def mock_macro_recorder(
     mocker: "MockerFixture", mock_macro: "MagicMock"
 ) -> "MagicMock":
     mock_macro_recorder = mocker.create_autospec(MacroRecorder, instance=True)
-    mock_macro_recorder.is_recording = (
-        lambda: mock_macro_recorder.start_recording.call_count
+    mock_macro_recorder.is_recording = lambda: (
+        mock_macro_recorder.start_recording.call_count
         > mock_macro_recorder.stop_recording.call_count
     )
     mock_macro_recorder.stop_recording.return_value = mock_macro

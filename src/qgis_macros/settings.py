@@ -18,7 +18,7 @@
 import enum
 import logging
 from dataclasses import dataclass
-from typing import Any, Optional, Union
+from typing import Any
 
 from qgis.PyQt.QtCore import QObject, pyqtSignal
 from qgis_plugin_tools.tools.i18n import tr
@@ -53,9 +53,9 @@ class SettingCategory(enum.Enum):
 class WidgetConfig:
     """Configuration options for different widget types."""
 
-    minimum: Optional[Union[int, float]] = None
-    maximum: Optional[Union[int, float]] = None
-    step: Optional[Union[int, float]] = None
+    minimum: int | float | None = None
+    maximum: int | float | None = None
+    step: int | float | None = None
 
 
 @dataclass
@@ -63,8 +63,8 @@ class Setting(QObject):
     description: str
     default: Any
     category: SettingCategory = SettingCategory.MACRO
-    widget_config: Optional[WidgetConfig] = None
-    widget_type: Optional[WidgetType] = None
+    widget_config: WidgetConfig | None = None
+    widget_type: WidgetType | None = None
     changed = pyqtSignal()
 
     def __post_init__(self) -> None:

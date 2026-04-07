@@ -18,8 +18,9 @@
 import dataclasses
 import logging
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Callable, Optional, Protocol, Union
+from typing import Protocol
 
 from qgis.core import Qgis, QgsApplication, QgsLineString
 from qgis.PyQt.QtCore import QEvent, QPoint, Qt
@@ -86,7 +87,7 @@ class Position:
     global_position: tuple[int, int]
 
     @staticmethod
-    def from_event(event: Union[QMouseEvent, QWheelEvent]) -> "Position":
+    def from_event(event: QMouseEvent | QWheelEvent) -> "Position":
         return Position(
             (event.x(), event.y()),
             (event.globalX(), event.globalY()),
@@ -107,7 +108,7 @@ class Position:
             return positions
 
         def _interpolate(points: list[tuple[int, int]]) -> list[tuple[int, int]]:
-            x, y = list(zip(*points))
+            x, y = list(zip(*points, strict=False))
             line = QgsLineString(x, y)
             distance = line.length() / (number_of_positions - 1)
             interpolated_points = [
@@ -125,7 +126,9 @@ class Position:
         global_positions = _interpolate([pos.global_position for pos in positions])
         return [
             Position(local_point, global_point)
-            for local_point, global_point in zip(local_positions, global_positions)
+            for local_point, global_point in zip(
+                local_positions, global_positions, strict=False
+            )
         ]
 
     @property
@@ -151,7 +154,7 @@ class BaseMacroEvent(ABC):
     ms_since_last_event: int = 0
 
     @staticmethod
-    def move_cursor(position: Union[tuple[int, int], QPoint]) -> None:
+    def move_cursor(position: tuple[int, int] | QPoint) -> None:
         if not isinstance(position, QPoint):
             position = QPoint(*position)
         QCursor.setPos(position)
@@ -402,7 +405,7 @@ class MacroMouseDoubleClickEvent(BaseMacroEvent):
 @dataclass
 class Macro:
     events: list[MacroEvent]
-    name: Optional[str] = None
+    name: str | None = None
     speed: float = 1.0
     qgis_version: int = Qgis.versionInt()
 

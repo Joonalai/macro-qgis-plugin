@@ -17,7 +17,6 @@
 #  along with profiler-qgis-plugin. If not, see <https://www.gnu.org/licenses/>.
 import logging
 from pathlib import Path
-from typing import Optional
 
 from qgis.core import QgsApplication
 from qgis.gui import QgsCollapsibleGroupBox
@@ -65,7 +64,7 @@ class SettingsDialog(QDialog, UI_CLASS):  # type: ignore
     combo_box_log_level_console: QComboBox
     button_box: QDialogButtonBox
 
-    def __init__(self, parent: Optional[QWidget] = None) -> None:
+    def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setupUi(self)
         self.setWindowIcon(QgsApplication.getThemeIcon("/propertyicons/settings.svg"))
