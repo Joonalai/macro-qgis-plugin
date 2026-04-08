@@ -16,10 +16,21 @@
 #  You should have received a copy of the GNU General Public License
 #  along with macro-qgis-plugin. If not, see <https://www.gnu.org/licenses/>.
 
+import gc
+
 import pytest
+from qgis.core import QgsApplication
 from qgis_macros.settings import Settings
 
 
 @pytest.fixture(autouse=True)
 def _reset_settings():
     Settings.reset()
+
+
+@pytest.fixture(autouse=True)
+def _flush_posted_events():
+    yield
+    QgsApplication.processEvents()
+    gc.collect()
+    QgsApplication.processEvents()

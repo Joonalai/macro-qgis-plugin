@@ -15,6 +15,7 @@
 #
 #  You should have received a copy of the GNU General Public License
 #  along with macro-qgis-plugin. If not, see <https://www.gnu.org/licenses/>.
+import gc
 import logging
 from typing import TYPE_CHECKING
 
@@ -51,6 +52,14 @@ WAIT_AFTER_MOUSE_MOVE = 1
 @pytest.fixture(autouse=True)
 def _reset_settings():
     Settings.reset()
+
+
+@pytest.fixture(autouse=True)
+def _flush_posted_events():
+    yield
+    QgsApplication.processEvents()
+    gc.collect()
+    QgsApplication.processEvents()
 
 
 @pytest.fixture
