@@ -23,7 +23,7 @@ import pytest
 from macro_plugin.ui.macro_model import MacroTableModel
 from macro_plugin.ui.macro_panel import MACRO_GROUP, MacroPanel, QgsApplication
 from qgis.PyQt.QtCore import QModelIndex, Qt
-from qgis.PyQt.QtWidgets import QToolButton
+from qgis.PyQt.QtWidgets import QApplication, QToolButton
 from qgis_macros.macro import Macro
 from qgis_macros.macro_player import MacroPlayer
 from qgis_macros.macro_recorder import MacroRecorder
@@ -73,6 +73,15 @@ def macro_panel(
     qtbot.addWidget(panel)
     panel.show()
     yield panel
+    # Close any open inline editor and clear selection before destruction
+    # to prevent signals firing on already-deleted child widgets.
+    panel.table_view.setCurrentIndex(QModelIndex())
+    panel.table_view.selectionModel().selectionChanged.disconnect(
+        panel._update_ui_state
+    )
+    panel.close()
+    QgsApplication.processEvents()
+    QApplication.sendPostedEvents(None, 0)
     if MACRO_GROUP in QgsApplication.profiler().groups():
         QgsApplication.profiler().clear(MACRO_GROUP)
 
