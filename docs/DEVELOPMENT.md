@@ -38,12 +38,9 @@ If you create or edit source files make sure that:
 - they contain absolute imports:
 
     ```python
+    from plugin.utils.exceptions import TestException  # Good
 
-    from plugin.utils.exceptions import TestException # Good
-
-    from ..utils.exceptions import TestException # Bad
-
-
+    from ..utils.exceptions import TestException  # Bad
     ```
 
 - you consider adding test files for the new functionality
