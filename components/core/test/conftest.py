@@ -31,10 +31,12 @@ from qgis.core import (
 )
 from qgis.gui import (
     QgisInterface,
+    QgsAdvancedDigitizingCanvasItem,
     QgsAdvancedDigitizingDockWidget,
     QgsMapCanvas,
     QgsMapToolDigitizeFeature,
 )
+from qgis.PyQt import sip
 from qgis.PyQt.QtGui import QCursor
 from qgis.PyQt.QtWidgets import (
     QWidget,
@@ -119,5 +121,11 @@ def digitize_feature_map_tool(qgis_canvas: QgsMapCanvas, empty_layer: QgsVectorL
     yield tool
     qgis_canvas.unsetMapTool(tool)
     tool.deleteLater()
+    # The dock widget adds a QgsAdvancedDigitizingCanvasItem to the canvas
+    # scene which holds a raw pointer back to the dock and is never removed
+    # by the dock's destructor.
+    for item in qgis_canvas.scene().items():
+        if isinstance(item, QgsAdvancedDigitizingCanvasItem):
+            sip.delete(item)
     cad_dock.deleteLater()
     QgsApplication.processEvents()
