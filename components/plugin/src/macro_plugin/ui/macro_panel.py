@@ -240,7 +240,7 @@ class MacroPanel(UI_CLASS, QgsDevToolWidget):  # type: ignore
                 success=True,
             )
 
-    def _update_ui_state(self, *args: Any) -> None:
+    def _update_ui_state(self, *args: Any) -> None:  # noqa: ARG002
         """Update button enabled/checked states to reflect current status."""
         self.button_record.setChecked(self._recorder.is_recording())
         self.button_play.setEnabled(len(self.table_view.selectedIndexes()) == 1)

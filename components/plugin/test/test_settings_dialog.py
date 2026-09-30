@@ -58,4 +58,4 @@ def test_settings_dialog_initialization(settings_dialog: "SettingsDialog") -> No
     assert len(settings_dialog._widgets) == len(Settings)
     assert set(settings_dialog._widgets.keys()) == set(Settings)
     assert set(settings_dialog._groups.keys()) == set(SettingCategory)
-    # utils.wait(10000)
+    # utils.wait(10000)  # noqa: ERA001

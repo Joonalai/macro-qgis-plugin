@@ -44,7 +44,7 @@ class MacroPlaybackStatus(enum.Enum):
 
     SUCCESS = enum.auto()
     FAILURE = enum.auto()
-    # TODO: implement stopped
+    # TODO: implement stopped  # noqa: TD003
     STOPPED = enum.auto()
 
 
@@ -57,7 +57,7 @@ class MacroPlaybackReport:
 
     def __post_init__(self) -> None:
         if self.status == MacroPlaybackStatus.FAILURE and self.error is None:
-            raise ValueError("Error must be provided if status is failure.")  # noqa: TRY003
+            raise ValueError("Error must be provided if status is failure.")  # noqa: TRY003, EM101
 
 
 class MacroPlayer(QObject):
