@@ -19,8 +19,9 @@
 from typing import TYPE_CHECKING
 
 import pytest
-from macro_plugin.ui.settings_dialog import SettingsDialog
 from qgis_macros.settings import SettingCategory, Settings
+
+from macro_plugin.ui.settings_dialog import SettingsDialog
 
 if TYPE_CHECKING:
     from pytestqt.qtbot import QtBot
