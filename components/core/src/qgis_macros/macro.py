@@ -289,7 +289,7 @@ default_position = Position((0, 0), (0, 0))
 
 
 @dataclass
-class BaseMacroEvent(ABC):
+class BaseMacroEvent(ABC):  # noqa: PLW1641
     """Base class for all macro events."""
 
     widget_spec: WidgetSpec
@@ -357,7 +357,7 @@ class BaseMacroEvent(ABC):
 
 
 @dataclass
-class MacroKeyEvent(BaseMacroEvent):
+class MacroKeyEvent(BaseMacroEvent):  # noqa: PLW1641
     """Keyboard press or release event."""
 
     key: int = 0
@@ -368,7 +368,7 @@ class MacroKeyEvent(BaseMacroEvent):
         """Replay the key press or release on the currently focused widget."""
         widget = QApplication.focusWidget()
         QgsApplication.processEvents()
-        # TODO: shift is not working
+        # TODO: shift is not working  # noqa: TD003
         schedule_next()
         if not self.is_release:
             QTest.keyPress(
@@ -391,7 +391,7 @@ class MacroKeyEvent(BaseMacroEvent):
 
 
 @dataclass
-class MacroMouseMoveEvent(BaseMacroEvent):
+class MacroMouseMoveEvent(BaseMacroEvent):  # noqa: PLW1641
     """Mouse movement event containing a sequence of positions."""
 
     positions: list[Position] = field(default_factory=list)
@@ -468,7 +468,7 @@ class MacroMouseMoveEvent(BaseMacroEvent):
 
 
 @dataclass
-class MacroMouseEvent(BaseMacroEvent):
+class MacroMouseEvent(BaseMacroEvent):  # noqa: PLW1641
     """Mouse button press or release event."""
 
     position: Position = default_position
@@ -511,7 +511,7 @@ class MacroMouseEvent(BaseMacroEvent):
 
 
 @dataclass
-class MacroWheelEvent(BaseMacroEvent):
+class MacroWheelEvent(BaseMacroEvent):  # noqa: PLW1641
     """Mouse wheel scroll event."""
 
     position: Position = default_position
@@ -554,7 +554,7 @@ class MacroWheelEvent(BaseMacroEvent):
 
 
 @dataclass
-class MacroMouseDoubleClickEvent(BaseMacroEvent):
+class MacroMouseDoubleClickEvent(BaseMacroEvent):  # noqa: PLW1641
     """Mouse double-click event."""
 
     position: Position = default_position

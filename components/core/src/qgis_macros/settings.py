@@ -49,7 +49,7 @@ from qgis_macros.exceptions import InvalidSettingValueError
 LOGGER = logging.getLogger(__name__)
 
 # This module is heavily inspired by profiler-qgis-plugin (GPLv3).
-# TODO: move to a common library
+# TODO: move to a common library  # noqa: TD003
 
 
 class WidgetType(enum.Enum):

@@ -254,4 +254,4 @@ def test_macro_recorder_should_record_digitizing_polygon(
     assert isinstance(feature, QgsFeature)
     assert feature.isValid()
     # Asserting geometry causes segfault
-    # assert feature.geometry()
+    # assert feature.geometry()  # noqa: ERA001

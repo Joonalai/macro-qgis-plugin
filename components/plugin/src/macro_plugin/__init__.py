@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 
 
 def classFactory(  # noqa: N802 (qgis naming)
-    iface: "QgisInterface",
+    iface: "QgisInterface",  # noqa: ARG001
 ) -> MacroPlugin:
     """Create the plugin instance (called by QGIS on plugin load)."""
     return MacroPlugin()
