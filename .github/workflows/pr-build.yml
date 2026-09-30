@@ -27,5 +27,5 @@ jobs:
       - name: Upload plugin zip
         uses: actions/upload-artifact@v7
         with:
-          name: profiler-qgis-plugin-${{ github.event.pull_request.number }}
+          name: macro-qgis-plugin-${{ github.event.pull_request.number }}
           path: components/plugin/dist/extracted/*

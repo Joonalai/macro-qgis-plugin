@@ -1,0 +1,18 @@
+# Changes here will be overwritten by Copier; NEVER EDIT MANUALLY
+_commit: v0.7.0
+_src_path: https://github.com/osgeosuomi/qgis-plugin-copier-template.git
+add_github_workflows: true
+insert_copyright_header: true
+is_monorepo_component: false
+min_code_coverage: 70
+plugin_metadata_author: Joonalai
+plugin_metadata_email: dev@cofactor.fi
+plugin_metadata_repository_url: https://github.com/Joonalai/macro-qgis-plugin
+qgis_plugin_about: This plugin adds a Macro panel into the Debugging/Development Tools
+    dock widget to record and play various macros.
+qgis_plugin_class: MacroPlugin
+qgis_plugin_description: Tool and library to create macros in QGIS
+qgis_plugin_module: macro_plugin
+qgis_plugin_name: Macro
+qgis_version: QGIS3 & QGIS4
+setup_translations: false
