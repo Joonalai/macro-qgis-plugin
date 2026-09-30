@@ -79,6 +79,7 @@ def key_macro_events(
     key: int,
     elapsed: tuple[int, int] = (0, 0),
     modifiers: int = enum_value(Qt.KeyboardModifier.NoModifier),
+    text: str = "",
 ) -> list[MacroEvent]:
     return [
         MacroKeyEvent(
@@ -86,6 +87,7 @@ def key_macro_events(
             ms_since_last_event=elapsed[0],
             key=key,
             modifiers=modifiers,
+            text=text,
         ),
         MacroKeyEvent(
             widget_spec=widget.widget_spec,
@@ -93,6 +95,7 @@ def key_macro_events(
             key=key,
             modifiers=modifiers,
             is_release=True,
+            text=text,
         ),
     ]
 
