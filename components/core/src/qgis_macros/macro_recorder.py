@@ -202,6 +202,7 @@ class MacroRecorder(QObject):
             key=event.key(),
             is_release=event.type() == QEvent.Type.KeyRelease,
             modifiers=enum_value(event.modifiers()),
+            text=event.text(),
             widget_spec=WidgetSpec.create(widget),
             widget_path=WidgetPath.create(widget),
         )

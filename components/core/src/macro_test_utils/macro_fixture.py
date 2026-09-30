@@ -148,7 +148,7 @@ def line_edit_key_macro_event(
     dialog_widget_positions: dict[str, WidgetInfo],
 ) -> list[MacroEvent]:
     widget = dialog_widget_positions["line_edit"]
-    return macro_utils.key_macro_events(widget, Qt.Key.Key_A)
+    return macro_utils.key_macro_events(widget, Qt.Key.Key_A, text="a")
 
 
 @pytest.fixture

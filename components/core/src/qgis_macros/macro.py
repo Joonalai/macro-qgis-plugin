@@ -40,7 +40,7 @@ from typing import Protocol
 
 from qgis.core import Qgis, QgsApplication, QgsLineString
 from qgis.PyQt.QtCore import QEvent, QPoint, Qt
-from qgis.PyQt.QtGui import QCursor, QMouseEvent, QWheelEvent
+from qgis.PyQt.QtGui import QCursor, QKeyEvent, QMouseEvent, QWheelEvent
 from qgis.PyQt.QtTest import QTest
 from qgis.PyQt.QtWidgets import QApplication, QWidget
 
@@ -363,21 +363,42 @@ class MacroKeyEvent(BaseMacroEvent):  # noqa: PLW1641
     key: int = 0
     is_release: bool = False
     modifiers: int = enum_value(Qt.KeyboardModifier.NoModifier)
+    text: str = ""
 
     def perform_event_action(self, schedule_next: Callable[[], None]) -> None:
         """Replay the key press or release on the currently focused widget."""
         widget = QApplication.focusWidget()
         QgsApplication.processEvents()
-        # TODO: shift is not working  # noqa: TD003
         schedule_next()
-        if not self.is_release:
-            QTest.keyPress(
-                widget, Qt.Key(self.key), Qt.KeyboardModifiers(self.modifiers)
-            )
+        key = Qt.Key(self.key)
+        modifiers = Qt.KeyboardModifiers(self.modifiers)
+        if self.text:
+            # Use the recorded text, since QTest derives the text from the key
+            # code alone and would ignore e.g. the shift modifier
+            self._send_key_event_with_text(widget, key, modifiers)
+        elif not self.is_release:
+            QTest.keyPress(widget, key, modifiers)
         else:
-            QTest.keyRelease(
-                widget, Qt.Key(self.key), Qt.KeyboardModifiers(self.modifiers)
+            QTest.keyRelease(widget, key, modifiers)
+
+    def _send_key_event_with_text(
+        self, widget: QWidget, key: Qt.Key, modifiers: Qt.KeyboardModifiers
+    ) -> None:
+        # PyQt only exposes the single char overload of QTest.sendKeyEvent,
+        # which accepts one latin-1 byte
+        try:
+            encoded_text = self.text.encode("latin-1")
+        except UnicodeEncodeError:
+            encoded_text = b""
+        if len(encoded_text) == 1:
+            action = (
+                QTest.KeyAction.Release if self.is_release else QTest.KeyAction.Press
             )
+            QTest.sendKeyEvent(action, widget, key, encoded_text, modifiers)
+            return
+
+        event_type = QEvent.Type.KeyRelease if self.is_release else QEvent.Type.KeyPress
+        QApplication.sendEvent(widget, QKeyEvent(event_type, key, modifiers, self.text))
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, MacroKeyEvent):
@@ -387,6 +408,7 @@ class MacroKeyEvent(BaseMacroEvent):  # noqa: PLW1641
             and self.key == other.key
             and self.is_release == other.is_release
             and self.modifiers == other.modifiers
+            and self.text == other.text
         )
 
 

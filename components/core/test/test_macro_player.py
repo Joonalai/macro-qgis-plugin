@@ -20,12 +20,15 @@ from collections.abc import Iterator
 from typing import TYPE_CHECKING
 
 import pytest
-from macro_test_utils.utils import WidgetEventListener
+from macro_test_utils import macro_utils
+from macro_test_utils.utils import WidgetEventListener, WidgetInfo
 from qgis.core import QgsFeature
 from qgis.gui import QgsMapToolDigitizeFeature
+from qgis.PyQt.QtCore import Qt
 from qgis_macros.exceptions import MacroPlaybackEndedError
 from qgis_macros.macro import (
     Macro,
+    MacroEvent,
     WidgetSpec,
 )
 from qgis_macros.macro_player import (
@@ -33,6 +36,7 @@ from qgis_macros.macro_player import (
     MacroPlaybackStatus,
     MacroPlayer,
 )
+from qgis_macros.utils import enum_value
 
 TIMEOUT = 1000
 
@@ -237,6 +241,46 @@ def test_macro_player_play_line_edit_macro(
     ):
         macro_player.play(line_edit_macro)
     assert dialog.line_edit.text() == "a"
+
+
+@pytest.mark.parametrize(
+    ("key", "modifier", "text"),
+    [
+        (Qt.Key.Key_A, Qt.KeyboardModifier.ShiftModifier, "A"),
+        (Qt.Key.Key_Adiaeresis, Qt.KeyboardModifier.NoModifier, "ä"),
+        (Qt.Key.Key_Adiaeresis, Qt.KeyboardModifier.ShiftModifier, "Ä"),
+        (Qt.Key.Key_4, Qt.KeyboardModifier.AltModifier, "€"),
+    ],
+    ids=["shift", "latin1", "latin1_shift", "non_latin1"],
+)
+def test_macro_player_play_line_edit_macro_with_text(
+    line_edit_click_macro_event: list[MacroEvent],
+    dialog_widget_positions: dict[str, WidgetInfo],
+    macro_player: MacroPlayer,
+    dialog: "Dialog",
+    qtbot: "QtBot",
+    key: Qt.Key,
+    modifier: Qt.KeyboardModifier,
+    text: str,
+):
+    macro = Macro(
+        events=[
+            *line_edit_click_macro_event,
+            *macro_utils.key_macro_events(
+                dialog_widget_positions["line_edit"],
+                enum_value(key),
+                modifiers=enum_value(modifier),
+                text=text,
+            ),
+        ]
+    )
+    with qtbot.waitSignals(
+        [macro_player.playback_ended, dialog.line_edit.textEdited],
+        check_params_cbs=checkers,
+        timeout=TIMEOUT,
+    ):
+        macro_player.play(macro)
+    assert dialog.line_edit.text() == text
 
 
 @pytest.mark.skip("Causes segmentation faults in CI")
