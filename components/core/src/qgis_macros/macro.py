@@ -349,7 +349,7 @@ class BaseMacroEvent(ABC):
         """Execute the event action and call *schedule_next* when done."""
         ...
 
-    def __eq__(self, other: object) -> bool:  # noqa: D105
+    def __eq__(self, other: object) -> bool:
         if not isinstance(other, BaseMacroEvent):
             return NotImplemented
 
@@ -379,7 +379,7 @@ class MacroKeyEvent(BaseMacroEvent):
                 widget, Qt.Key(self.key), Qt.KeyboardModifiers(self.modifiers)
             )
 
-    def __eq__(self, other: object) -> bool:  # noqa: D105
+    def __eq__(self, other: object) -> bool:
         if not isinstance(other, MacroKeyEvent):
             return NotImplemented
         return super().__eq__(other) and (
@@ -444,7 +444,7 @@ class MacroMouseMoveEvent(BaseMacroEvent):
         """Interpolate the positions to a given number of positions."""
         self.positions = Position.interpolate(self.positions, number_of_positions)
 
-    def __eq__(self, other: object) -> bool:  # noqa: D105
+    def __eq__(self, other: object) -> bool:
         if not isinstance(other, MacroMouseMoveEvent):
             return NotImplemented
         return super().__eq__(other) and (
@@ -453,7 +453,7 @@ class MacroMouseMoveEvent(BaseMacroEvent):
             and self.modifiers == other.modifiers
         )
 
-    def __repr__(self) -> str:  # noqa: D105
+    def __repr__(self) -> str:
         if len(self.positions) == 1:
             positions = self.positions
         else:
@@ -499,7 +499,7 @@ class MacroMouseEvent(BaseMacroEvent):
                 corrected_position.local_point,
             )
 
-    def __eq__(self, other: object) -> bool:  # noqa: D105
+    def __eq__(self, other: object) -> bool:
         if not isinstance(other, MacroMouseEvent):
             return NotImplemented
         return super().__eq__(other) and (
@@ -541,7 +541,7 @@ class MacroWheelEvent(BaseMacroEvent):
         QApplication.postEvent(widget, event)
         QApplication.processEvents()
 
-    def __eq__(self, other: object) -> bool:  # noqa: D105
+    def __eq__(self, other: object) -> bool:
         if not isinstance(other, MacroWheelEvent):
             return NotImplemented
         return super().__eq__(other) and (
@@ -575,7 +575,7 @@ class MacroMouseDoubleClickEvent(BaseMacroEvent):
             corrected_position.local_point,
         )
 
-    def __eq__(self, other: object) -> bool:  # noqa: D105
+    def __eq__(self, other: object) -> bool:
         if not isinstance(other, MacroMouseDoubleClickEvent):
             return NotImplemented
         return super().__eq__(other) and (

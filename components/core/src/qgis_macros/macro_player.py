@@ -55,7 +55,7 @@ class MacroPlaybackReport:
     status: MacroPlaybackStatus = MacroPlaybackStatus.SUCCESS
     error: Exception | None = None
 
-    def __post_init__(self) -> None:  # noqa: D105
+    def __post_init__(self) -> None:
         if self.status == MacroPlaybackStatus.FAILURE and self.error is None:
             raise ValueError("Error must be provided if status is failure.")  # noqa: TRY003
 

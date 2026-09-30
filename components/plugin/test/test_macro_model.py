@@ -17,9 +17,10 @@
 #  along with macro-qgis-plugin. If not, see <https://www.gnu.org/licenses/>.
 from typing import TYPE_CHECKING
 
-from macro_plugin.ui.macro_model import MacroTableModel
 from qgis.PyQt.QtCore import NULL, QModelIndex, Qt
 from qgis_macros.macro import Macro
+
+from macro_plugin.ui.macro_model import MacroTableModel
 
 if TYPE_CHECKING:
     from pytest_mock import MockerFixture
