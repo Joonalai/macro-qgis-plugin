@@ -18,6 +18,7 @@
 """Macro panel UI with recording, playback, and file I/O controls."""
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -45,10 +46,12 @@ from qgis_plugin_tools.tools.i18n import tr
 from qgis_plugin_tools.tools.messages import MsgBar
 from qgis_plugin_tools.tools.resources import load_ui_from_file, resources_path
 
+from macro_plugin.macro_storage import MacroStorage, default_autosave_directory
 from macro_plugin.ui.macro_model import MacroTableModel
 from macro_plugin.ui.settings_dialog import SettingsDialog
 
 MACRO_GROUP = "Macro"
+MACRO_NAME_PATTERN = re.compile(r"macro_(\d+)")
 
 UI_CLASS: QWidget = load_ui_from_file(
     str(Path(__file__).parent.joinpath("macro_panel.ui"))
@@ -74,6 +77,7 @@ class MacroPanel(UI_CLASS, QgsDevToolWidget):  # type: ignore
         self,
         macro_recorder: MacroRecorder,
         macro_player: MacroPlayer,
+        macro_storage: MacroStorage | None = None,
         parent: QWidget | None = None,
     ) -> None:
         """Initialize the panel.
@@ -82,6 +86,8 @@ class MacroPanel(UI_CLASS, QgsDevToolWidget):  # type: ignore
             recording interactions.
         :param macro_player: Instance of MacroPlayer to handle macro
             playback functionality.
+        :param macro_storage: Optional storage for autosaving macros. Stored
+            macros are loaded into the panel.
         :param parent: Optional parent QWidget for UI hierarchy.
         """
         super().__init__(parent)
@@ -94,7 +100,9 @@ class MacroPanel(UI_CLASS, QgsDevToolWidget):  # type: ignore
         self._player.playback_ended.connect(self._macro_playback_ended)
         self._last_played_macro_name: str | None = None
 
-        self._model = MacroTableModel()
+        self._model = MacroTableModel(macro_storage)
+        if macro_storage is not None:
+            self._model.reset_macros(macro_storage.load_macros())
 
         self._configure_table()
         self._configure_buttons()
@@ -147,7 +155,13 @@ class MacroPanel(UI_CLASS, QgsDevToolWidget):  # type: ignore
         return bool(self._model.macros and self.table_view.selectedIndexes())
 
     def _generate_macro_name(self) -> str:
-        return f"macro_{len(self._model.macros) + 1}"
+        """Return the next unused ``macro_<number>`` name."""
+        numbers = [
+            int(match.group(1))
+            for macro in self._model.macros
+            if macro.name and (match := MACRO_NAME_PATTERN.fullmatch(macro.name))
+        ]
+        return f"macro_{max(numbers, default=0) + 1}"
 
     def _toggle_recording(self) -> None:
         if not self._recorder.is_recording():
@@ -210,13 +224,13 @@ class MacroPanel(UI_CLASS, QgsDevToolWidget):  # type: ignore
             self,
             tr("Load Macros"),
             str(default_path),
-            tr("Profiler Files (*.json);;All Files (*)"),
+            tr("Macro Files (*.json);;All Files (*)"),
         )
         if file_path:
             with Path(file_path).open("r") as path:
                 data = json.load(path)
                 macros = [Macro.deserialize(macro_data) for macro_data in data]
-                self._model.reset_macros(macros)
+                self._model.add_macros(macros)
 
     def _save_macros_to_file(self) -> None:
         default_path = Path(Settings.macro_save_path.get())
@@ -225,7 +239,7 @@ class MacroPanel(UI_CLASS, QgsDevToolWidget):  # type: ignore
             self,
             tr("Save Macros"),
             str(default_path),
-            tr("Profiler Files (*.json);;All Files (*)"),
+            tr("Macro Files (*.json);;All Files (*)"),
         )
         if file_path:
             path = Path(file_path)
@@ -261,4 +275,11 @@ class MacroToolFactory(QgsDevToolWidgetFactory):
 
     def createWidget(self, parent: QWidget | None = None) -> MacroPanel:  # noqa: N802
         """Create a new MacroPanel instance."""
-        return MacroPanel(MacroRecorder(), MacroPlayer(Settings.speed.get()), parent)
+        storage = (
+            MacroStorage(default_autosave_directory())
+            if Settings.autosave_macros.get()
+            else None
+        )
+        return MacroPanel(
+            MacroRecorder(), MacroPlayer(Settings.speed.get()), storage, parent
+        )

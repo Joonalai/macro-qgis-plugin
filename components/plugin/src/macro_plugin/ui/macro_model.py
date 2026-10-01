@@ -23,35 +23,56 @@ from qgis.PyQt.QtCore import NULL, QAbstractTableModel, QModelIndex, Qt, QVarian
 from qgis_macros.macro import Macro
 from qgis_plugin_tools.tools.i18n import tr
 
+from macro_plugin.macro_storage import MacroStorage
+
 
 class MacroTableModel(QAbstractTableModel):
     """Table model for a list of :class:`~qgis_macros.macro.Macro` objects."""
 
     headers: ClassVar[dict[int, str]] = {0: tr("Macro")}
 
-    def __init__(self) -> None:
-        """Initialize the model with an empty macro list."""
+    def __init__(self, storage: MacroStorage | None = None) -> None:
+        """Initialize the model with an empty macro list.
+
+        :param storage: Optional storage that is kept in sync with the model.
+            Added and renamed macros are saved and removed macros are deleted.
+        """
         super().__init__()
         self.macros: list[Macro] = []
+        self._storage = storage
 
     def add_macro(self, macro: Macro) -> None:
         """Append a macro and notify attached views."""
-        row = len(self.macros)
-        self.beginInsertRows(QModelIndex(), row, row)
+        self.add_macros([macro])
 
-        self.macros.append(macro)
+    def add_macros(self, macros: list[Macro]) -> None:
+        """Append macros and notify attached views."""
+        if not macros:
+            return
+        row = len(self.macros)
+        self.beginInsertRows(QModelIndex(), row, row + len(macros) - 1)
+
+        self.macros.extend(macros)
 
         # Notify the view that rows have been added
         self.endInsertRows()
+        if self._storage is not None:
+            for macro in macros:
+                self._storage.save_macro(macro)
 
     def remove_macro(self, row: int) -> None:
         """Remove the macro at *row* and notify attached views."""
         self.beginRemoveRows(QModelIndex(), row, row)
-        self.macros.pop(row)
+        macro = self.macros.pop(row)
         self.endRemoveRows()
+        if self._storage is not None:
+            self._storage.delete_macro(macro)
 
     def reset_macros(self, macros: list[Macro]) -> None:
-        """Replace the entire macro list and reset the model."""
+        """Replace the entire macro list and reset the model.
+
+        The storage is not modified.
+        """
         self.beginResetModel()
         self.macros = macros
         self.endResetModel()
@@ -121,4 +142,6 @@ class MacroTableModel(QAbstractTableModel):
             return False
         self.macros[row].name = name
         self.dataChanged.emit(index, index, [role])
+        if self._storage is not None:
+            self._storage.save_macro(self.macros[row])
         return True
