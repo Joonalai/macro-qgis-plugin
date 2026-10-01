@@ -48,6 +48,7 @@ from qgis.PyQt.QtWidgets import QApplication, QWidget
 
 from qgis_macros import utils
 from qgis_macros.constants import (
+    ASCII_KEY_LIMIT,
     MAXIMUM_NEAREST_CANDIDATES,
     MAXIMUM_PARENT_DEPTH,
 )
@@ -374,31 +375,42 @@ class MacroKeyEvent(BaseMacroEvent):  # noqa: PLW1641
         schedule_next()
         key = Qt.Key(self.key)
         modifiers = Qt.KeyboardModifiers(self.modifiers)
-        if self.text:
-            # Use the recorded text, since QTest derives the text from the key
-            # code alone and would ignore e.g. the shift modifier
+        if self._needs_recorded_text():
             self._send_key_event_with_text(widget, key, modifiers)
         elif not self.is_release:
             QTest.keyPress(widget, key, modifiers)
         else:
             QTest.keyRelease(widget, key, modifiers)
 
+    def _needs_recorded_text(self) -> bool:
+        """Check if the recorded text differs from the text QTest would use.
+
+        QTest derives the text from the key code alone, which ignores e.g. the
+        shift modifier and non-ASCII characters. Control characters (e.g. from
+        Ctrl shortcuts) are left to QTest as before.
+        """
+        if not self.text or not self.text.isprintable():
+            return False
+        derived_text = chr(self.key).lower() if self.key < ASCII_KEY_LIMIT else None
+        return self.text != derived_text
+
     def _send_key_event_with_text(
         self, widget: QWidget, key: Qt.Key, modifiers: Qt.KeyboardModifiers
     ) -> None:
-        # PyQt only exposes the single char overload of QTest.sendKeyEvent,
-        # which accepts one latin-1 byte
+        # QTest.sendKeyEvent is not available in PyQt5 and PyQt6 only exposes
+        # its single char overload, which accepts one latin-1 byte
         try:
             encoded_text = self.text.encode("latin-1")
         except UnicodeEncodeError:
             encoded_text = b""
-        if len(encoded_text) == 1:
+        if len(encoded_text) == 1 and hasattr(QTest, "sendKeyEvent"):
             action = (
                 QTest.KeyAction.Release if self.is_release else QTest.KeyAction.Press
             )
             QTest.sendKeyEvent(action, widget, key, encoded_text, modifiers)
             return
 
+        # Shortcuts are not triggered by events sent directly to the widget
         event_type = QEvent.Type.KeyRelease if self.is_release else QEvent.Type.KeyPress
         QApplication.sendEvent(widget, QKeyEvent(event_type, key, modifiers, self.text))
 
