@@ -126,6 +126,13 @@ class Settings(enum.Enum):
         description=tr("Default save path for macros."),
         default=profile_path("macros"),
     )
+    autosave_macros = Setting(
+        description=tr(
+            "Autosave macros to the QGIS profile. "
+            "Takes effect when the macro panel is opened."
+        ),
+        default=True,
+    )
     move_event_interpolation_count = Setting(
         description=tr(
             "How many points mouse move events should have. "

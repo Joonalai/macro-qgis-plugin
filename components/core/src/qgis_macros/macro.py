@@ -33,6 +33,8 @@ Example usage::
 
 import dataclasses
 import logging
+import time
+import uuid
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -607,6 +609,11 @@ class MacroMouseDoubleClickEvent(BaseMacroEvent):  # noqa: PLW1641
         )
 
 
+def new_macro_uid() -> str:
+    """Return a unique macro identifier that sorts by creation time."""
+    return f"{time.time_ns():020d}_{uuid.uuid4().hex[:8]}"
+
+
 @dataclass
 class Macro:
     """A recorded sequence of user interaction events.
@@ -631,6 +638,7 @@ class Macro:
     name: str | None = None
     speed: float = 1.0
     qgis_version: int = Qgis.versionInt()
+    uid: str = field(default_factory=new_macro_uid, compare=False)
 
     def serialize(self) -> dict:
         """Serialize the macro to a JSON-compatible dict."""

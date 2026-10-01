@@ -27,10 +27,18 @@ from qgis_macros.macro_player import MacroPlayer
 from qgis_macros.macro_recorder import MacroRecorder
 from qgis_macros.settings import Settings
 
+from macro_plugin.macro_storage import MacroStorage
 from macro_plugin.ui.macro_model import MacroTableModel
-from macro_plugin.ui.macro_panel import MACRO_GROUP, MacroPanel, QgsApplication
+from macro_plugin.ui.macro_panel import (
+    MACRO_GROUP,
+    MacroPanel,
+    MacroToolFactory,
+    QgsApplication,
+)
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from pytest_mock import MockerFixture
     from pytest_subtests import SubTests
     from pytestqt.qtbot import QtBot
@@ -213,6 +221,31 @@ def test_macro_panel_generates_incremental_names(
     assert mock_macro_2.name == "macro_2"
 
 
+@pytest.mark.parametrize(
+    ("existing_names", "expected_name"),
+    [
+        (["macro_2"], "macro_3"),
+        (["macro_1", "macro_3"], "macro_4"),
+        (["renamed", "macro_x", "my_macro_5"], "macro_1"),
+    ],
+    ids=["after_delete", "gap", "custom_names"],
+)
+def test_macro_panel_does_not_reuse_existing_names(
+    macro_panel: MacroPanel,
+    macro_model: MacroTableModel,
+    mock_macro: "MagicMock",
+    qtbot: "QtBot",
+    existing_names: list[str],
+    expected_name: str,
+) -> None:
+    macro_model.reset_macros([Macro(events=[], name=name) for name in existing_names])
+
+    qtbot.mouseClick(macro_panel.button_record, Qt.MouseButton.LeftButton)
+    qtbot.mouseClick(macro_panel.button_record, Qt.MouseButton.LeftButton)
+
+    assert mock_macro.name == expected_name
+
+
 @pytest.mark.usefixtures("record_macro", "set_macro_selected")
 def test_macro_panel_play_macro(
     macro_panel: MacroPanel,
@@ -244,3 +277,100 @@ def test_macro_panel_delete_macro(
     assert macro_panel.table_view.selectedIndexes() == []
     assert macro_model.macros == []
     assert macro_model.rowCount(mock_index) == 0
+
+
+@pytest.fixture
+def macro_storage(tmp_path: "Path") -> MacroStorage:
+    return MacroStorage(tmp_path / "autosave")
+
+
+@pytest.fixture
+def autosaving_macro_panel(
+    mock_macro_recorder: "MagicMock",
+    mock_macro_player: "MagicMock",
+    macro_storage: MacroStorage,
+    qtbot: "QtBot",
+) -> Iterator[MacroPanel]:
+    mock_macro_recorder.stop_recording.side_effect = lambda: Macro(events=[])
+    panel = MacroPanel(mock_macro_recorder, mock_macro_player, macro_storage)
+    qtbot.addWidget(panel)
+    panel.show()
+    yield panel
+    panel.table_view.setCurrentIndex(QModelIndex())
+    panel.close()
+    QgsApplication.processEvents()
+
+
+def test_macro_panel_loads_autosaved_macros(
+    mock_macro_recorder: "MagicMock",
+    mock_macro_player: "MagicMock",
+    macro_storage: MacroStorage,
+    qtbot: "QtBot",
+) -> None:
+    macros = [Macro(events=[], name="first"), Macro(events=[], name="second")]
+    for macro in macros:
+        macro_storage.save_macro(macro)
+
+    panel = MacroPanel(mock_macro_recorder, mock_macro_player, macro_storage)
+    qtbot.addWidget(panel)
+
+    assert panel.table_view.model().macros == macros  # type: ignore[union-attr]
+
+
+def test_macro_panel_autosaves_recorded_macro(
+    autosaving_macro_panel: MacroPanel,
+    macro_storage: MacroStorage,
+    qtbot: "QtBot",
+) -> None:
+    qtbot.mouseClick(autosaving_macro_panel.button_record, Qt.MouseButton.LeftButton)
+    qtbot.mouseClick(autosaving_macro_panel.button_record, Qt.MouseButton.LeftButton)
+
+    assert [macro.name for macro in macro_storage.load_macros()] == ["macro_1"]
+
+
+def test_macro_panel_delete_removes_autosaved_files(
+    autosaving_macro_panel: MacroPanel,
+    macro_storage: MacroStorage,
+    qtbot: "QtBot",
+) -> None:
+    for _ in range(3):
+        qtbot.mouseClick(
+            autosaving_macro_panel.button_record, Qt.MouseButton.LeftButton
+        )
+        qtbot.mouseClick(
+            autosaving_macro_panel.button_record, Qt.MouseButton.LeftButton
+        )
+    autosaving_macro_panel.table_view.selectAll()
+
+    qtbot.mouseClick(autosaving_macro_panel.button_delete, Qt.MouseButton.LeftButton)
+
+    assert macro_storage.load_macros() == []
+    assert not list(macro_storage.directory.iterdir())
+
+
+@pytest.mark.parametrize("autosave", [True, False], ids=["enabled", "disabled"])
+def test_macro_tool_factory_uses_autosave_setting(
+    mocker: "MockerFixture",
+    macro_storage: MacroStorage,
+    qtbot: "QtBot",
+    autosave: bool,
+) -> None:
+    mocker.patch(
+        "macro_plugin.ui.macro_panel.default_autosave_directory",
+        return_value=macro_storage.directory,
+    )
+    macro_storage.save_macro(Macro(events=[], name="autosaved"))
+    # Settings set here would be stored under a different key than the one the
+    # plugin reads, because qgis_plugin_tools resolves the key from the call stack
+    mocker.patch.object(Settings.autosave_macros, "get", return_value=autosave)
+
+    panel = MacroToolFactory().createWidget()
+    qtbot.addWidget(panel)
+    model = cast("MacroTableModel", panel.table_view.model())
+    model.add_macro(Macro(events=[], name="new"))
+
+    expected_names = ["autosaved", "new"] if autosave else ["autosaved"]
+    assert [macro.name for macro in macro_storage.load_macros()] == expected_names
+    assert [macro.name for macro in model.macros] == (
+        ["autosaved", "new"] if autosave else ["new"]
+    )
