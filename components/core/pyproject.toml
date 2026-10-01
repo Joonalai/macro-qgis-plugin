@@ -31,6 +31,3 @@ explicit = true
 [tool.uv.build-backend]
 module-name = "qgis_macros"
 include = ["py.typed"]
-
-[tool.uv]
-default-groups = ["dev", "lint"]
