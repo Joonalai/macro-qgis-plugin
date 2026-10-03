@@ -9,3 +9,4 @@
 - Macros are autosaved to the QGIS profile (can be disabled in settings) and deleting a macro deletes its file
 - Fixed playback of mouse moves with a button held (e.g. digitizing) and wheel events on Qt 6
 - Clarified the description of the mouse movement point count setting
+- Fixed playback speed scale
