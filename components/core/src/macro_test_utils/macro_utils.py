@@ -105,11 +105,13 @@ def mouse_move_macro_event(
     positions: list[Position] | None = None,
     elapsed: int = 0,
     modifiers: int = enum_value(Qt.KeyboardModifier.NoModifier),
+    buttons: int = enum_value(Qt.MouseButton.NoButton),
 ) -> MacroEvent:
     positions = positions or [widget.position]
     return MacroMouseMoveEvent(
         widget_spec=widget.widget_spec,
         ms_since_last_event=elapsed,
         positions=positions,
+        buttons=buttons,
         modifiers=modifiers,
     )

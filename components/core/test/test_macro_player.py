@@ -22,13 +22,15 @@ from typing import TYPE_CHECKING
 import pytest
 from macro_test_utils import macro_utils
 from macro_test_utils.utils import WidgetEventListener, WidgetInfo
-from qgis.core import QgsFeature
+from qgis.core import QgsFeature, QgsWkbTypes
 from qgis.gui import QgsMapToolDigitizeFeature
 from qgis.PyQt.QtCore import Qt
 from qgis_macros.exceptions import MacroPlaybackEndedError
 from qgis_macros.macro import (
     Macro,
     MacroEvent,
+    MacroMouseMoveEvent,
+    MacroWheelEvent,
     WidgetSpec,
 )
 from qgis_macros.macro_player import (
@@ -283,19 +285,95 @@ def test_macro_player_play_line_edit_macro_with_text(
     assert dialog.line_edit.text() == text
 
 
-@pytest.mark.skip("Causes segmentation faults in CI")
-@pytest.mark.usefixtures("digitize_feature_map_tool", "empty_layer")
+def test_macro_player_play_mouse_move_with_button_held(
+    dialog_widget_positions: dict[str, WidgetInfo],
+    macro_player: MacroPlayer,
+    dialog: "Dialog",
+    widget_listener: WidgetEventListener,
+    qtbot: "QtBot",
+):
+    # Arrange
+    widget_listener.start_listening(dialog.button)
+    macro = Macro(
+        events=[
+            macro_utils.mouse_move_macro_event(
+                dialog_widget_positions["button"],
+                buttons=enum_value(Qt.MouseButton.LeftButton),
+            )
+        ]
+    )
+
+    # Act and assert
+    with qtbot.waitSignals(
+        [macro_player.playback_ended, widget_listener.mouse_moved],
+        check_params_cbs=checkers,
+        timeout=TIMEOUT,
+    ):
+        macro_player.play(macro)
+
+
+def test_macro_player_play_wheel_event(
+    dialog_widget_positions: dict[str, WidgetInfo],
+    macro_player: MacroPlayer,
+    dialog: "Dialog",
+    widget_listener: WidgetEventListener,
+    qtbot: "QtBot",
+):
+    # Arrange
+    widget_listener.start_listening(dialog.button)
+    button = dialog_widget_positions["button"]
+    macro = Macro(
+        events=[
+            MacroWheelEvent(
+                widget_spec=button.widget_spec,
+                position=button.position,
+                delta=120,
+            )
+        ]
+    )
+
+    # Act and assert
+    with qtbot.waitSignals(
+        [macro_player.playback_ended, widget_listener.wheeled],
+        check_params_cbs=checkers,
+        timeout=TIMEOUT,
+    ):
+        macro_player.play(macro)
+
+
+@pytest.mark.parametrize(
+    "move_buttons",
+    [Qt.MouseButton.NoButton, Qt.MouseButton.LeftButton],
+    ids=["no_button", "left_button_held"],
+)
+@pytest.mark.usefixtures("empty_layer")
 @pytest.mark.qgis_show_map(timeout=0)
-def test_macro_recorder_should_record_digitizing_polygon(
+def test_macro_player_should_play_digitizing_polygon(
     macro_player: MacroPlayer,
     digitize_polygon_macro: Macro,
     qtbot: "QtBot",
     digitize_feature_map_tool: QgsMapToolDigitizeFeature,
+    move_buttons: Qt.MouseButton,
 ):
-    with qtbot.waitSignal(digitize_feature_map_tool.digitizingCompleted) as blocker:
+    # Arrange
+    for event in digitize_polygon_macro.events:
+        if isinstance(event, MacroMouseMoveEvent):
+            event.buttons = enum_value(move_buttons)
+    # The signal argument is a temporary, so copy it while it is alive
+    features: list[QgsFeature] = []
+    digitize_feature_map_tool.digitizingCompleted.connect(
+        lambda feature: features.append(QgsFeature(feature))
+    )
+
+    # Act
+    with qtbot.waitSignals(
+        [macro_player.playback_ended, digitize_feature_map_tool.digitizingCompleted],
+        check_params_cbs=checkers,
+        timeout=TIMEOUT,
+    ):
         macro_player.play(digitize_polygon_macro)
-    feature = blocker.args[0]
-    assert isinstance(feature, QgsFeature)
-    assert feature.isValid()
-    # Asserting geometry causes segfault
-    # assert feature.geometry()  # noqa: ERA001
+
+    # Assert
+    assert len(features) == 1
+    assert features[0].isValid()
+    assert features[0].geometry().wkbType() == QgsWkbTypes.Type.Polygon
