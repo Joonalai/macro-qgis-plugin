@@ -50,14 +50,14 @@
      <item>
       <widget class="Line" name="line_record">
        <property name="orientation">
-        <enum>Qt::Orientation::Vertical</enum>
+        <enum>Qt::Vertical</enum>
        </property>
       </widget>
      </item>
      <item>
       <widget class="QToolButton" name="button_open">
        <property name="toolTip">
-        <string>Open macros from the disk</string>
+        <string>Open macros and macro workflows from the disk</string>
        </property>
        <property name="text">
         <string/>
@@ -70,7 +70,7 @@
      <item>
       <widget class="QToolButton" name="button_save">
        <property name="toolTip">
-        <string>Save all macros to the disk...</string>
+        <string>Save all macros and macro workflows to the disk...</string>
        </property>
        <property name="text">
         <string/>
@@ -83,7 +83,7 @@
      <item>
       <widget class="Line" name="line">
        <property name="frameShadow">
-        <enum>QFrame::Shadow::Sunken</enum>
+        <enum>QFrame::Sunken</enum>
        </property>
        <property name="lineWidth">
         <number>1</number>
@@ -92,7 +92,7 @@
         <number>0</number>
        </property>
        <property name="orientation">
-        <enum>Qt::Orientation::Vertical</enum>
+        <enum>Qt::Vertical</enum>
        </property>
       </widget>
      </item>
@@ -112,7 +112,7 @@
      <item>
       <spacer name="horizontalSpacer_3">
        <property name="orientation">
-        <enum>Qt::Orientation::Horizontal</enum>
+        <enum>Qt::Horizontal</enum>
        </property>
        <property name="sizeHint" stdset="0">
         <size>
@@ -162,7 +162,7 @@
          <item>
           <spacer name="horizontalSpacer_macros">
            <property name="orientation">
-            <enum>Qt::Orientation::Horizontal</enum>
+            <enum>Qt::Horizontal</enum>
            </property>
            <property name="sizeHint" stdset="0">
             <size>
@@ -180,13 +180,13 @@
           <bool>true</bool>
          </property>
          <property name="dragDropMode">
-          <enum>QAbstractItemView::DragDropMode::DragOnly</enum>
+          <enum>QAbstractItemView::DragOnly</enum>
          </property>
          <property name="defaultDropAction">
-          <enum>Qt::DropAction::CopyAction</enum>
+          <enum>Qt::CopyAction</enum>
          </property>
          <property name="selectionMode">
-          <enum>QAbstractItemView::SelectionMode::ExtendedSelection</enum>
+          <enum>QAbstractItemView::ExtendedSelection</enum>
          </property>
          <property name="showGrid">
           <bool>false</bool>
@@ -227,7 +227,7 @@
          <item>
           <widget class="Line" name="line_workflows">
            <property name="orientation">
-            <enum>Qt::Orientation::Vertical</enum>
+            <enum>Qt::Vertical</enum>
            </property>
           </widget>
          </item>
@@ -250,7 +250,7 @@
             <string/>
            </property>
            <property name="popupMode">
-            <enum>QToolButton::ToolButtonPopupMode::InstantPopup</enum>
+            <enum>QToolButton::InstantPopup</enum>
            </property>
           </widget>
          </item>
@@ -275,6 +275,16 @@
           </widget>
          </item>
          <item>
+          <widget class="QToolButton" name="button_export_workflow">
+           <property name="toolTip">
+            <string>Export the selected macro workflow and its macros to a file</string>
+           </property>
+           <property name="text">
+            <string/>
+           </property>
+          </widget>
+         </item>
+         <item>
           <widget class="QToolButton" name="button_delete_workflow_item">
            <property name="toolTip">
             <string>Delete the selected macro workflow or step</string>
@@ -287,7 +297,7 @@
          <item>
           <spacer name="horizontalSpacer_workflows">
            <property name="orientation">
-            <enum>Qt::Orientation::Horizontal</enum>
+            <enum>Qt::Horizontal</enum>
            </property>
            <property name="sizeHint" stdset="0">
             <size>
@@ -308,13 +318,13 @@
           <bool>true</bool>
          </property>
          <property name="dragDropMode">
-          <enum>QAbstractItemView::DragDropMode::DragDrop</enum>
+          <enum>QAbstractItemView::DragDrop</enum>
          </property>
          <property name="defaultDropAction">
-          <enum>Qt::DropAction::MoveAction</enum>
+          <enum>Qt::MoveAction</enum>
          </property>
          <property name="selectionMode">
-          <enum>QAbstractItemView::SelectionMode::SingleSelection</enum>
+          <enum>QAbstractItemView::SingleSelection</enum>
          </property>
          <attribute name="headerVisible">
           <bool>false</bool>

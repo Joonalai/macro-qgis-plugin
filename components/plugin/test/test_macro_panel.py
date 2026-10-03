@@ -16,6 +16,7 @@
 #  You should have received a copy of the GNU General Public License
 #  along with macro-qgis-plugin. If not, see <https://www.gnu.org/licenses/>.
 import contextlib
+import json
 from collections.abc import Iterator
 from typing import TYPE_CHECKING, cast
 from unittest.mock import MagicMock
@@ -23,8 +24,9 @@ from unittest.mock import MagicMock
 import pytest
 from qgis.PyQt.QtCore import QModelIndex, Qt
 from qgis.PyQt.QtWidgets import QApplication, QToolButton
-from qgis_macros.exceptions import MacroPluginError
+from qgis_macros.exceptions import InvalidMacroFileError, MacroPluginError
 from qgis_macros.macro import Macro
+from qgis_macros.macro_file import MacroFile
 from qgis_macros.macro_player import (
     MacroPlaybackReport,
     MacroPlaybackStatus,
@@ -57,6 +59,8 @@ if TYPE_CHECKING:
 def mock_macro(mocker: "MockerFixture") -> MagicMock:
     mock_macro = mocker.create_autospec(Macro, instance=True)
     mock_macro.name = None
+    # Dataclass fields with a default factory are not part of the spec
+    mock_macro.uid = "mock_macro_uid"
     return mock_macro
 
 
@@ -781,3 +785,172 @@ def test_stopping_recording_shows_new_macro(
 
     assert macro_panel.tab_widget.currentWidget() is macro_panel.tab_macros
     assert macro_panel.table_view.currentIndex() == macro_model.index(0, 0)
+
+
+@pytest.fixture
+def macro_file_path(tmp_path: "Path", mocker: "MockerFixture") -> "Path":
+    mocker.patch.object(Settings.macro_save_path, "get", return_value=str(tmp_path))
+    path = tmp_path / "macros.json"
+    for method in ("getSaveFileName", "getOpenFileName"):
+        mocker.patch(
+            f"macro_plugin.ui.macro_panel.QFileDialog.{method}",
+            return_value=(str(path), ""),
+        )
+    return path
+
+
+@pytest.fixture
+def msg_bar(mocker: "MockerFixture") -> "MagicMock":
+    return mocker.patch("macro_plugin.ui.macro_panel.MsgBar")
+
+
+@pytest.mark.usefixtures("msg_bar")
+def test_save_writes_macros_and_workflows(
+    macro_panel: MacroPanel,
+    workflow: MacroWorkflow,
+    macros: list[Macro],
+    macro_file_path: "Path",
+    qtbot: "QtBot",
+) -> None:
+    qtbot.mouseClick(macro_panel.button_save, Qt.MouseButton.LeftButton)
+
+    saved = MacroFile.load(macro_file_path)
+    assert saved.macros == macros
+    assert [m.uid for m in saved.macros] == [m.uid for m in macros]
+    assert saved.workflows == [workflow]
+
+
+@pytest.mark.usefixtures("msg_bar")
+def test_export_workflow_writes_only_used_macros(
+    macro_panel: MacroPanel,
+    macro_model: MacroTableModel,
+    workflow: MacroWorkflow,
+    macros: list[Macro],
+    macro_file_path: "Path",
+    qtbot: "QtBot",
+) -> None:
+    macro_model.add_macro(Macro(events=[], name="unused"))
+    _select_workflow_item(macro_panel, 0, 1)
+
+    qtbot.mouseClick(macro_panel.button_export_workflow, Qt.MouseButton.LeftButton)
+
+    saved = MacroFile.load(macro_file_path)
+    assert saved.macros == [macros[1], macros[0]]
+    assert saved.workflows == [workflow]
+
+
+@pytest.mark.usefixtures("msg_bar")
+def test_export_selected_macros(
+    macro_panel: MacroPanel,
+    workflow: MacroWorkflow,
+    macros: list[Macro],
+    macro_file_path: "Path",
+) -> None:
+    macro_panel.table_view.selectRow(1)
+    menu = macro_panel._create_macro_context_menu()
+    assert menu is not None
+
+    _find_action(menu, "Export selected macros...").trigger()
+
+    saved = MacroFile.load(macro_file_path)
+    assert saved.macros == [macros[1]]
+    assert saved.workflows == []
+
+
+def test_load_file_reuses_existing_items(
+    macro_panel: MacroPanel,
+    macro_model: MacroTableModel,
+    workflow_model: MacroWorkflowTreeModel,
+    workflow: MacroWorkflow,
+    macros: list[Macro],
+    macro_file_path: "Path",
+    msg_bar: "MagicMock",
+    qtbot: "QtBot",
+    subtests: "SubTests",
+) -> None:
+    new_macro = Macro(events=[], name="new")
+    identical_workflow = MacroWorkflow(workflow.name, list(workflow.macro_uids))
+    identical_workflow.uid = workflow.uid
+    changed_workflow = MacroWorkflow("changed", [macros[0].uid, new_macro.uid])
+    changed_workflow.uid = workflow.uid
+    new_workflow = MacroWorkflow("new", [new_macro.uid])
+    MacroFile(
+        [*macros, new_macro], [identical_workflow, changed_workflow, new_workflow]
+    ).save(macro_file_path)
+    macro_panel.tab_widget.setCurrentWidget(macro_panel.tab_macros)
+
+    with subtests.test("First load"):
+        qtbot.mouseClick(macro_panel.button_open, Qt.MouseButton.LeftButton)
+
+        assert macro_model.macros == [*macros, new_macro]
+        assert [w.name for w in workflow_model.workflows] == [
+            "workflow",
+            "changed",
+            "new",
+        ]
+        assert workflow_model.workflows[1].uid != workflow.uid
+        assert workflow_model.workflows[1].macro_uids == [
+            macros[0].uid,
+            new_macro.uid,
+        ]
+        assert macro_panel.tab_widget.currentWidget() is macro_panel.tab_macro_workflows
+        msg_bar.warning.assert_not_called()
+
+    with subtests.test("Second load adds nothing new"):
+        qtbot.mouseClick(macro_panel.button_open, Qt.MouseButton.LeftButton)
+
+        assert len(macro_model.macros) == 3
+        assert [w.name for w in workflow_model.workflows] == [
+            "workflow",
+            "changed",
+            "new",
+        ]
+
+
+def test_load_first_format_file(
+    macro_panel: MacroPanel,
+    macro_model: MacroTableModel,
+    macro_file_path: "Path",
+    msg_bar: "MagicMock",
+    qtbot: "QtBot",
+) -> None:
+    macro = Macro(events=[], name="old")
+    macro_file_path.write_text(json.dumps([macro.serialize()]), encoding="utf-8")
+
+    qtbot.mouseClick(macro_panel.button_open, Qt.MouseButton.LeftButton)
+
+    assert macro_model.macros == [macro]
+    assert macro_panel.tab_widget.currentWidget() is macro_panel.tab_macros
+    msg_bar.info.assert_called_once()
+
+
+def test_load_warns_about_missing_macros(
+    macro_panel: MacroPanel,
+    workflow_model: MacroWorkflowTreeModel,
+    macro_file_path: "Path",
+    msg_bar: "MagicMock",
+    qtbot: "QtBot",
+) -> None:
+    MacroFile([], [MacroWorkflow("broken", ["missing", "missing"])]).save(
+        macro_file_path
+    )
+
+    qtbot.mouseClick(macro_panel.button_open, Qt.MouseButton.LeftButton)
+
+    assert [w.name for w in workflow_model.workflows] == ["broken"]
+    msg_bar.warning.assert_called_once()
+    assert "2" in msg_bar.warning.call_args.args[1]
+
+
+def test_load_invalid_file_adds_nothing(
+    macro_panel: MacroPanel,
+    macro_model: MacroTableModel,
+    macro_file_path: "Path",
+    qtbot: "QtBot",
+) -> None:
+    macro_file_path.write_text("{not json", encoding="utf-8")
+
+    with pytest.raises(InvalidMacroFileError):
+        macro_panel._load_macros_from_file.__wrapped__(macro_panel)  # type: ignore[attr-defined]
+
+    assert macro_model.macros == []

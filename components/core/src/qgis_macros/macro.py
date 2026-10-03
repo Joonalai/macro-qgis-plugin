@@ -632,18 +632,15 @@ class Macro:
 
     Example::
 
-        import json
         from pathlib import Path
 
-        from qgis_macros.macro import Macro
+        from qgis_macros.macro_file import MacroFile
 
-        # Load macros from a JSON file
-        with Path("macros.json").open() as f:
-            data = json.load(f)
-        macros = [Macro.deserialize(d) for d in data]
+        # Load macros from a file saved by the macro panel
+        macros = MacroFile.load(Path("macros.json")).macros
 
-        # Serialize macros back to JSON
-        serialized = [m.serialize() for m in macros]
+        # Save macros to a file
+        MacroFile(macros).save(Path("macros.json"))
     """
 
     events: list[MacroEvent]

@@ -17,7 +17,6 @@
 #  along with macro-qgis-plugin. If not, see <https://www.gnu.org/licenses/>.
 """Macro panel UI with recording, playback, and file I/O controls."""
 
-import json
 import re
 from collections.abc import Callable, Iterable
 from functools import partial
@@ -39,7 +38,8 @@ from qgis.PyQt.QtWidgets import (
     QWidget,
 )
 from qgis_macros.exceptions import MacroNotFoundError, MacroPluginError
-from qgis_macros.macro import Macro
+from qgis_macros.macro import Macro, new_macro_uid
+from qgis_macros.macro_file import MacroFile
 from qgis_macros.macro_player import (
     MacroPlaybackReport,
     MacroPlaybackStatus,
@@ -65,8 +65,14 @@ from macro_plugin.ui.settings_dialog import SettingsDialog
 from macro_plugin.ui.workflow_model import MacroWorkflowTreeModel
 
 MACRO_GROUP = "Macro"
+INVALID_FILE_NAME_CHARACTERS = re.compile(r'[\\/:*?"<>|]')
 MACRO_NAME_PREFIX = "macro"
 WORKFLOW_NAME_PREFIX = "workflow"
+
+
+def _macro_file_filter() -> str:
+    return tr("Macro Files (*.json);;All Files (*)")
+
 
 UI_CLASS: QWidget = load_ui_from_file(
     str(Path(__file__).parent.joinpath("macro_panel.ui"))
@@ -86,6 +92,7 @@ class MacroPanel(UI_CLASS, QgsDevToolWidget):  # type: ignore
     button_delete: QToolButton
     button_play_workflow: QToolButton
     button_delete_workflow_item: QToolButton
+    button_export_workflow: QToolButton
     button_open: QToolButton
     button_save: QToolButton
     button_settings: QToolButton
@@ -224,6 +231,10 @@ class MacroPanel(UI_CLASS, QgsDevToolWidget):  # type: ignore
             self.button_delete_workflow_item: (
                 self._delete_selected_workflow_item,
                 "/mActionDeleteSelected.svg",
+            ),
+            self.button_export_workflow: (
+                self._export_selected_workflow,
+                "/mActionFileSaveAs.svg",
             ),
             self.button_new_workflow: (
                 self._new_workflow,
@@ -517,6 +528,12 @@ class MacroPanel(UI_CLASS, QgsDevToolWidget):  # type: ignore
             partial(self._new_workflow, macro_uids),
             "/mActionAdd.svg",
         )
+        self._add_action(
+            menu,
+            tr("Export selected macros..."),
+            self._export_selected_macros,
+            "/mActionFileSaveAs.svg",
+        )
         return menu
 
     def _create_workflow_context_menu(self, index: QModelIndex) -> QMenu:
@@ -572,6 +589,12 @@ class MacroPanel(UI_CLASS, QgsDevToolWidget):  # type: ignore
             )
             self._add_action(
                 menu,
+                tr("Export workflow..."),
+                partial(self._export_workflow, workflow),
+                "/mActionFileSaveAs.svg",
+            )
+            self._add_action(
+                menu,
                 tr("Delete workflow"),
                 partial(self._delete_workflow_item, index),
                 "/mActionDeleteSelected.svg",
@@ -602,6 +625,7 @@ class MacroPanel(UI_CLASS, QgsDevToolWidget):  # type: ignore
         self._player.set_speed(Settings.speed.get())
         self._update_ui_state()
 
+    @log_if_fails
     def _load_macros_from_file(self) -> None:
         default_path = Path(Settings.macro_save_path.get())
         default_path.mkdir(parents=True, exist_ok=True)
@@ -609,40 +633,131 @@ class MacroPanel(UI_CLASS, QgsDevToolWidget):  # type: ignore
             self,
             tr("Load Macros"),
             str(default_path),
-            tr("Macro Files (*.json);;All Files (*)"),
+            _macro_file_filter(),
         )
         if file_path:
-            with Path(file_path).open("r") as path:
-                data = json.load(path)
-                macros = [Macro.deserialize(macro_data) for macro_data in data]
-                self._model.add_macros(macros)
+            self._import_macro_file(MacroFile.load(Path(file_path)))
+
+    def _import_macro_file(self, macro_file: MacroFile) -> None:
+        """Add the macros and workflows of *macro_file* to the panel.
+
+        Macros that already exist are reused. Workflows with the same name and
+        steps as an existing workflow are skipped. Other workflows are added,
+        with a new uid if the uid is already in use.
+        """
+        known_uids = set(self._workflow_model.macros_by_uid())
+        new_macros = []
+        for macro in macro_file.macros:
+            if macro.uid not in known_uids:
+                known_uids.add(macro.uid)
+                new_macros.append(macro)
+        self._model.add_macros(new_macros)
+
+        workflows = list(self._workflow_model.workflows)
+        known_workflow_uids = {w.uid for w in workflows}
+        new_workflows = []
+        for workflow in macro_file.workflows:
+            # Workflows compare equal when their names and steps are equal
+            if workflow in workflows:
+                continue
+            if workflow.uid in known_workflow_uids:
+                workflow.uid = new_macro_uid()
+            known_workflow_uids.add(workflow.uid)
+            workflows.append(workflow)
+            new_workflows.append(workflow)
+        for index in self._workflow_model.add_workflows(new_workflows):
+            self.tree_view_workflows.expand(index)
+        if macro_file.workflows:
+            self.tab_widget.setCurrentWidget(self.tab_macro_workflows)
+
+        MsgBar.info(
+            tr("Macro file loaded"),
+            tr(
+                "Added {} macros and {} macro workflows.",
+                len(new_macros),
+                len(new_workflows),
+            ),
+            success=True,
+        )
+        missing_steps = sum(
+            uid not in known_uids for w in new_workflows for uid in w.macro_uids
+        )
+        if missing_steps:
+            MsgBar.warning(
+                tr("Macro workflows refer to missing macros"),
+                tr(
+                    "{} workflow steps refer to macros that do not exist.",
+                    missing_steps,
+                ),
+            )
 
     def _save_macros_to_file(self) -> None:
+        self._write_macro_file(
+            MacroFile(list(self._model.macros), list(self._workflow_model.workflows)),
+            tr("Save Macros and Macro Workflows"),
+        )
+
+    def _export_selected_macros(self) -> None:
+        macros = [self._model.macros[row] for row in self._selected_macro_rows()]
+        if macros:
+            self._write_macro_file(MacroFile(macros), tr("Export Macros"))
+
+    def _export_selected_workflow(self) -> None:
+        workflow = self._workflow_model.workflow_for_index(
+            self._selected_workflow_index()
+        )
+        if workflow is not None:
+            self._export_workflow(workflow)
+
+    def _export_workflow(self, workflow: MacroWorkflow) -> None:
+        """Save *workflow* and the macros it uses to a file."""
+        self._write_macro_file(
+            MacroFile.for_workflows([workflow], self._workflow_model.macros_by_uid()),
+            tr("Export Macro Workflow"),
+            INVALID_FILE_NAME_CHARACTERS.sub("_", workflow.name or "workflow"),
+        )
+
+    @log_if_fails
+    def _write_macro_file(
+        self, macro_file: MacroFile, title: str, file_name: str = ""
+    ) -> None:
+        """Ask for a file path and write *macro_file* to it.
+
+        :param macro_file: Contents of the file.
+        :param title: Title of the file dialog.
+        :param file_name: Suggested file name without the suffix.
+        """
         default_path = Path(Settings.macro_save_path.get())
         default_path.mkdir(parents=True, exist_ok=True)
+        if file_name:
+            default_path /= f"{file_name}.json"
         file_path, _ = QFileDialog.getSaveFileName(
-            self,
-            tr("Save Macros"),
-            str(default_path),
-            tr("Macro Files (*.json);;All Files (*)"),
+            self, title, str(default_path), _macro_file_filter()
         )
-        if file_path:
-            path = Path(file_path)
-            if not path.suffix:
-                path = path.with_name(path.name + ".json")
-            serialized_macros = [macro.serialize() for macro in self._model.macros]
-            with path.open("w") as f:
-                json.dump(serialized_macros, f, indent=4)
-            MsgBar.info(
-                tr("Macros saved"),
-                tr("File saved to {}", str(path)),
-                success=True,
-            )
+        if not file_path:
+            return
+        path = Path(file_path)
+        if not path.suffix:
+            path = path.with_name(path.name + ".json")
+        try:
+            macro_file.save(path)
+        except OSError as e:
+            raise MacroPluginError(
+                tr("Could not save macro file {}", str(path)),
+                bar_msg(details=str(e)),
+            ) from e
+        MsgBar.info(
+            tr("Macros saved"),
+            tr("File saved to {}", str(path)),
+            success=True,
+        )
 
     def _update_ui_state(self, *args: Any) -> None:  # noqa: ARG002
         """Update button enabled/checked states to reflect current status."""
         self.button_record.setChecked(self._recorder.is_recording())
-        self.button_save.setEnabled(bool(self._model.macros))
+        self.button_save.setEnabled(
+            bool(self._model.macros or self._workflow_model.workflows)
+        )
 
         self.button_play.setEnabled(len(self.table_view.selectedIndexes()) == 1)
         self.button_delete.setEnabled(bool(self.table_view.selectedIndexes()))
@@ -654,6 +769,7 @@ class MacroPanel(UI_CLASS, QgsDevToolWidget):  # type: ignore
             workflow is not None and bool(workflow.macro_uids)
         )
         self.button_delete_workflow_item.setEnabled(workflow is not None)
+        self.button_export_workflow.setEnabled(workflow is not None)
         self.button_add_step.setEnabled(workflow is not None)
         self.button_move_step_up.setEnabled(is_step and workflow_index.row() > 0)
         self.button_move_step_down.setEnabled(

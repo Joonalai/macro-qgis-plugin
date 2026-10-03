@@ -37,7 +37,22 @@ Playing Back a Macro
 
 Select a saved macro and click the **Play** button to replay the recorded events.
 
+Building Macro Workflows
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+A macro workflow plays existing macros one after another, and the same macro
+can be used several times. On the **Macro workflows** tab, create a workflow
+and add macros to it by dragging them from the **All macros** tab or with the
+add menus. Drag the steps or use the arrow buttons to reorder them, and click
+**Play** to run the workflow. The step that is playing is marked in the tree.
+
 Saving and Loading Macros
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Macros can be saved to disk and loaded later for repeated usage.
+Click the **Save** button to save all macros and macro workflows to a file.
+To share a single workflow, use **Export workflow** on the **Macro workflows**
+tab. It saves the workflow with the macros it uses. Selected macros can be
+exported from the context menu of the **All macros** tab.
+
+Use the **Open** button to load macros and workflows from a file. Macros and
+workflows that are already in the panel are not loaded again.

@@ -14,6 +14,7 @@ It can be used as a standalone dependency by any plugin using `qgis-plugin-dev-t
    macro_recorder
    macro_player
    macro_workflow
+   macro_file
    settings
    exceptions
    utils
