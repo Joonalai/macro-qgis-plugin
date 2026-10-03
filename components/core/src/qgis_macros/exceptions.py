@@ -66,3 +66,13 @@ class MacroNotFoundError(MacroPluginError):
     def __init__(self, macro_uid: str) -> None:
         """Initialize with the uid of the missing macro."""
         super().__init__(tr("Macro {} not found.", macro_uid))
+
+
+class InvalidMacroFileError(MacroPluginError):
+    """Raised when a macro file cannot be read."""
+
+    def __init__(self, path: str, e: Exception) -> None:
+        """Initialize with the file path and the underlying exception."""
+        super().__init__(
+            tr("Could not read macro file {}", path), bar_msg(details=str(e))
+        )

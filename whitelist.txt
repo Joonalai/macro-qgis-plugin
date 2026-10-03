@@ -20,6 +20,7 @@ eq
 fid
 fids
 formatter
+fromkeys
 fullmatch
 funcargs
 gdal

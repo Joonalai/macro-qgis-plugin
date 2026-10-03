@@ -11,7 +11,8 @@ Features
 --------
 
 * Record and playback macros (mouse and keyboard events)
-* Save macros to disk for later usage
+* Combine macros into macro workflows that play them in sequence
+* Save macros and macro workflows to disk for later usage
 * Optionally profile macros
 
 Requirements

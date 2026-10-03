@@ -10,3 +10,4 @@
 - Fixed playback of mouse moves with a button held (e.g. digitizing) and wheel events on Qt 6
 - Fixed playback speed scale
 - Added macro workflows that play existing macros in sequence
+- Saved macro files contain macro workflows

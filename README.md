@@ -15,7 +15,8 @@ that allows users to record and playback simple macros.
 ## Features
 
 * Record and playback macros (mouse and keyboard events)
-* Save macros to disk for later usage
+* Combine macros into macro workflows that play them in sequence
+* Save macros and macro workflows to disk for later usage
 * Optionally profile macros
 
 ## Installation
@@ -45,10 +46,22 @@ Click **Record** again to stop and name the macro.
 Select a saved macro from the table and click the **Play** button to replay
 the recorded events.
 
+### Building Macro Workflows
+
+A macro workflow plays existing macros one after another, and the same macro
+can be used several times. On the **Macro workflows** tab, create a workflow
+and add macros to it by dragging them from the **All macros** tab or with the
+add menus. Drag the steps or use the arrow buttons to reorder them.
+
 ### Saving and Loading Macros
 
-Click the **Save** button to export macros as a `.json` file.
-Use the **Open** button to load previously saved macros from disk.
+Click the **Save** button to export all macros and macro workflows as a `.json`
+file. To share a single workflow, use **Export workflow** on the
+**Macro workflows** tab. It saves the workflow with the macros it uses.
+Selected macros can be exported from the context menu of the **All macros** tab.
+
+Use the **Open** button to load previously saved macros and workflows from disk.
+Macros and workflows that are already in the panel are not loaded again.
 
 ### Using the Core Library
 
