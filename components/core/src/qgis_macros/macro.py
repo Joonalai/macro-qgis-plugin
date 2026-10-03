@@ -41,7 +41,7 @@ from dataclasses import dataclass, field
 from typing import Protocol
 
 from qgis.core import Qgis, QgsApplication, QgsLineString
-from qgis.PyQt.QtCore import QEvent, QPoint, Qt
+from qgis.PyQt.QtCore import QEvent, QPoint, QPointF, Qt
 from qgis.PyQt.QtGui import QCursor, QKeyEvent, QMouseEvent, QWheelEvent
 from qgis.PyQt.QtTest import QTest
 from qgis.PyQt.QtWidgets import QApplication, QWidget
@@ -464,11 +464,11 @@ class MacroMouseMoveEvent(BaseMacroEvent):  # noqa: PLW1641
 
         for position in self.positions:
             corrected_position = position.widget_corrected_position(widget)
-            # Create and send mouse move events
+            # Create and send mouse move events. Qt 6 accepts only QPointF.
             event = QMouseEvent(
                 QEvent.Type.MouseMove,
-                corrected_position.local_point,
-                corrected_position.global_point,
+                QPointF(corrected_position.local_point),
+                QPointF(corrected_position.global_point),
                 Qt.MouseButton.NoButton,
                 Qt.MouseButtons(self.buttons),
                 Qt.KeyboardModifiers(self.modifiers),
@@ -564,15 +564,15 @@ class MacroWheelEvent(BaseMacroEvent):  # noqa: PLW1641
         self.move_cursor(corrected_position.global_point)
         schedule_next()
         event = QWheelEvent(
-            corrected_position.local_point,
-            corrected_position.global_point,
+            QPointF(corrected_position.local_point),
+            QPointF(corrected_position.global_point),
             QPoint(0, self.delta),
             QPoint(0, self.delta),
             Qt.MouseButton.NoButton,
             Qt.KeyboardModifier.NoModifier,
-            self.phase,
+            Qt.ScrollPhase(self.phase),
             self.inverted,
-            self.source,
+            Qt.MouseEventSource(self.source),
         )
         QApplication.postEvent(widget, event)
         QApplication.processEvents()

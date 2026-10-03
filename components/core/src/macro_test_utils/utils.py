@@ -122,6 +122,8 @@ def wait(wait_ms: int) -> None:
 
 class WidgetEventListener(QObject):
     double_clicked = pyqtSignal()  # Signal emitted when a double click is detected.
+    mouse_moved = pyqtSignal()  # Signal emitted when a mouse move is detected.
+    wheeled = pyqtSignal()  # Signal emitted when a wheel event is detected.
 
     def __init__(self) -> None:
         super().__init__(None)
@@ -137,7 +139,11 @@ class WidgetEventListener(QObject):
         self.widgets.clear()
 
     def eventFilter(self, watched_object: QObject, event: QEvent) -> bool:  # noqa: N802
-        """Override of QObject.eventFilter to detect double clicks."""
+        """Override of QObject.eventFilter to detect double clicks, moves and wheels."""
         if event.type() == QEvent.Type.MouseButtonDblClick:
             self.double_clicked.emit()
+        elif event.type() == QEvent.Type.MouseMove:
+            self.mouse_moved.emit()
+        elif event.type() == QEvent.Type.Wheel:
+            self.wheeled.emit()
         return super().eventFilter(watched_object, event)
