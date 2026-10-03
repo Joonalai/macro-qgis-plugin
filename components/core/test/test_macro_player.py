@@ -24,11 +24,13 @@ from macro_test_utils import macro_utils
 from macro_test_utils.utils import WidgetEventListener, WidgetInfo
 from qgis.core import QgsFeature, QgsWkbTypes
 from qgis.gui import QgsMapToolDigitizeFeature
-from qgis.PyQt.QtCore import Qt
+from qgis.PyQt.QtCore import QPoint, Qt, QTimer
+from qgis.PyQt.QtWidgets import QMenu
 from qgis_macros.exceptions import MacroPlaybackEndedError
 from qgis_macros.macro import (
     Macro,
     MacroEvent,
+    MacroMenuActionEvent,
     MacroMouseMoveEvent,
     MacroWheelEvent,
     WidgetSpec,
@@ -48,6 +50,7 @@ if TYPE_CHECKING:
     from macro_test_utils.utils import Dialog
     from pytest_mock import MockerFixture
     from pytestqt.qtbot import QtBot
+    from qgis.PyQt.QtGui import QAction
 
 pytest_plugins = [
     "macro_test_utils.macro_fixture",
@@ -412,3 +415,118 @@ def test_macro_player_should_play_digitizing_polygon(
     assert len(features) == 1
     assert features[0].isValid()
     assert features[0].geometry().wkbType() == QgsWkbTypes.Type.Polygon
+
+
+@pytest.fixture
+def styles_menu(dialog: "Dialog") -> "Iterator[tuple[QMenu, QAction]]":
+    menu = QMenu(dialog)
+    menu.addAction("Zoom to Layer")
+    menu.addSeparator()
+    styles = menu.addMenu("&Styles")
+    styles.addAction("slow")
+    fast = styles.addAction("fast")
+    yield menu, fast
+    menu.close()
+
+
+def _menu_action_macro(*action_path: str) -> Macro:
+    return Macro(
+        events=[
+            MacroMenuActionEvent(WidgetSpec("QMenu"), action_path=list(action_path))
+        ]
+    )
+
+
+def test_macro_player_should_activate_submenu_item(
+    styles_menu: "tuple[QMenu, QAction]",
+    macro_player: MacroPlayer,
+    dialog: "Dialog",
+    qtbot: "QtBot",
+):
+    menu, fast = styles_menu
+    menu.popup(dialog.mapToGlobal(QPoint(10, 10)))
+    qtbot.waitExposed(menu)
+
+    with qtbot.waitSignals(
+        [macro_player.playback_ended, fast.triggered],
+        check_params_cbs=[_check_successfull, None],
+        timeout=TIMEOUT,
+    ):
+        macro_player.play(_menu_action_macro("Styles", "fast"))
+
+    assert not menu.isVisible()
+
+
+def test_macro_player_menu_exec_should_return_activated_item(
+    styles_menu: "tuple[QMenu, QAction]",
+    macro_player: MacroPlayer,
+    dialog: "Dialog",
+    qtbot: "QtBot",
+):
+    menu, fast = styles_menu
+    QTimer.singleShot(
+        0, lambda: macro_player.play(_menu_action_macro("Styles", "fast"))
+    )
+
+    with qtbot.waitSignal(macro_player.playback_ended, timeout=TIMEOUT):
+        result = menu.exec(dialog.mapToGlobal(QPoint(10, 10)))
+
+    assert result is fast
+
+
+def test_macro_player_should_activate_context_menu_item(
+    styles_menu: "tuple[QMenu, QAction]",
+    dialog_widget_positions: dict[str, WidgetInfo],
+    macro_player: MacroPlayer,
+    dialog: "Dialog",
+    qtbot: "QtBot",
+):
+    # Like the QGIS layer tree, open a context menu with QMenu.exec
+    menu, fast = styles_menu
+    dialog.button.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+    dialog.button.customContextMenuRequested.connect(
+        lambda point: menu.exec(dialog.button.mapToGlobal(point))
+    )
+    macro = Macro(
+        events=[
+            *macro_utils.widget_clicking_macro_events(
+                dialog_widget_positions["button"],
+                button=enum_value(Qt.MouseButton.RightButton),
+            ),
+            *_menu_action_macro("Styles", "fast").events,
+        ]
+    )
+
+    with qtbot.waitSignals(
+        [macro_player.playback_ended, fast.triggered],
+        check_params_cbs=[_check_successfull, None],
+        timeout=TIMEOUT,
+    ):
+        macro_player.play(macro)
+
+
+@pytest.mark.parametrize(
+    "action_path",
+    [["Styles", "missing"], ["missing"], ["Styles"], ["Zoom to Layer", "fast"]],
+    ids=["missing_item", "missing_root", "submenu", "not_a_submenu"],
+)
+def test_macro_player_should_fail_if_menu_item_not_found(
+    styles_menu: "tuple[QMenu, QAction]",
+    macro_player: MacroPlayer,
+    dialog: "Dialog",
+    qtbot: "QtBot",
+    action_path: list[str],
+):
+    menu, fast = styles_menu
+    triggered: list[bool] = []
+    fast.triggered.connect(triggered.append)
+    menu.popup(dialog.mapToGlobal(QPoint(10, 10)))
+    qtbot.waitExposed(menu)
+
+    with qtbot.waitSignal(macro_player.playback_ended, timeout=TIMEOUT) as blocker:
+        macro_player.play(_menu_action_macro(*action_path))
+
+    report = blocker.args[0]
+    assert report.status == MacroPlaybackStatus.FAILURE
+    assert isinstance(report.error, MacroPlaybackEndedError)
+    assert not triggered

@@ -30,7 +30,8 @@ from qgis.gui import (
     QgsMapToolDigitizeFeature,
 )
 from qgis.PyQt.QtCore import QPoint, Qt
-from qgis_macros.macro import Position
+from qgis.PyQt.QtWidgets import QMenu
+from qgis_macros.macro import MacroMenuActionEvent, MacroMouseEvent, Position
 from qgis_macros.macro_recorder import MacroRecorder
 from qgis_macros.utils import enum_value
 
@@ -262,3 +263,87 @@ def test_macro_recorder_should_record_digitizing_polygon(
             canvas, initial_position, button=enum_value(Qt.MouseButton.RightButton)
         ),
     ]
+
+
+@pytest.fixture
+def context_menu(dialog: Dialog) -> Iterator[tuple[QMenu, QMenu]]:
+    menu = QMenu(dialog)
+    menu.addAction("Zoom to Layer")
+    styles = menu.addMenu("&Styles")
+    styles.addAction("slow")
+    styles.addAction("fast")
+    yield menu, styles
+    menu.close()
+
+
+def _open_submenu(menu: QMenu, submenu: QMenu, qtbot: "QtBot") -> None:
+    menu.setActiveAction(submenu.menuAction())
+    qtbot.waitExposed(submenu)
+
+
+def test_macro_recorder_should_record_menu_item_by_text(
+    dialog: Dialog,
+    context_menu: tuple[QMenu, QMenu],
+    macro_recorder: MacroRecorder,
+    qtbot: "QtBot",
+):
+    # Arrange
+    menu, styles = context_menu
+    menu.popup(dialog.mapToGlobal(QPoint(10, 10)))
+    qtbot.waitExposed(menu)
+    _open_submenu(menu, styles, qtbot)
+    fast_position = styles.actionGeometry(styles.actions()[1]).center()
+
+    # Act
+    qtbot.mouseMove(styles, fast_position)
+    qtbot.mousePress(styles, Qt.MouseButton.LeftButton, pos=fast_position)
+    qtbot.mouseRelease(styles, Qt.MouseButton.LeftButton, pos=fast_position)
+    macro = macro_recorder.stop_recording()
+
+    # Assert
+    menu_events = [e for e in macro.events if isinstance(e, MacroMenuActionEvent)]
+    assert [e.action_path for e in menu_events] == [["Styles", "fast"]]
+    assert macro.events[-1] is menu_events[0]
+    # No coordinate based events inside the menus are left
+    assert not [
+        e
+        for e in macro.events
+        if isinstance(e, MacroMouseEvent) and e.widget_spec.widget_class == "QMenu"
+    ]
+
+
+def test_macro_recorder_should_keep_context_menu_click(
+    dialog: Dialog,
+    context_menu: tuple[QMenu, QMenu],
+    dialog_widget_positions: dict[str, WidgetInfo],
+    macro_recorder: MacroRecorder,
+    qtbot: "QtBot",
+):
+    # Arrange
+    menu, styles = context_menu
+    button = dialog_widget_positions["button"]
+
+    # Act: the context menu opens on the press and the release lands on it
+    qtbot.mousePress(
+        dialog.button, Qt.MouseButton.RightButton, pos=button.position.local_point
+    )
+    menu.popup(dialog.button.mapToGlobal(button.position.local_point))
+    qtbot.waitExposed(menu)
+    qtbot.mouseRelease(menu, Qt.MouseButton.RightButton, pos=QPoint(1, 1))
+    _open_submenu(menu, styles, qtbot)
+    fast_position = styles.actionGeometry(styles.actions()[1]).center()
+    qtbot.mousePress(styles, Qt.MouseButton.LeftButton, pos=fast_position)
+    qtbot.mouseRelease(styles, Qt.MouseButton.LeftButton, pos=fast_position)
+    macro = macro_recorder.stop_recording()
+
+    # Assert
+    press, release, menu_action = macro.events
+    assert isinstance(press, MacroMouseEvent)
+    assert press.button == enum_value(Qt.MouseButton.RightButton)
+    assert not press.is_release
+    assert press.widget_spec.widget_class == "QPushButton"
+    assert isinstance(release, MacroMouseEvent)
+    assert release.is_release
+    assert release.button == enum_value(Qt.MouseButton.RightButton)
+    assert isinstance(menu_action, MacroMenuActionEvent)
+    assert menu_action.action_path == ["Styles", "fast"]
