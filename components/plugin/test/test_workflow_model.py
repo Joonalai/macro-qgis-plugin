@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 from qgis.PyQt.QtCore import QMimeData, QModelIndex, Qt
+from qgis.PyQt.QtWidgets import QTreeView
 from qgis_macros.macro import Macro
 from qgis_macros.macro_workflow import MacroWorkflow
 
@@ -29,6 +30,7 @@ from macro_plugin.ui.macro_model import MACRO_UIDS_MIME_TYPE, MacroTableModel
 from macro_plugin.ui.workflow_model import MacroWorkflowTreeModel
 
 if TYPE_CHECKING:
+    from pytestqt.modeltest import ModelTester
     from pytestqt.qtbot import QtBot
 
 
@@ -290,3 +292,31 @@ def test_playing_step_mark_survives_workflow_deletion(
     model.set_playing_step(None)
 
     assert model.workflows == []
+
+
+def test_model_passes_qt_model_checks(
+    model: MacroWorkflowTreeModel,
+    workflow: MacroWorkflow,
+    qtmodeltester: "ModelTester",
+) -> None:
+    model.add_workflow("missing", ["missing"])
+    model.set_playing_step(workflow, 1)
+
+    qtmodeltester.check(model, force_py=True)
+
+
+def test_rows_have_height_in_tree_view(
+    model: MacroWorkflowTreeModel, workflow: MacroWorkflow, qtbot: "QtBot"
+) -> None:
+    # Unhandled roles must return an invalid value. A null but valid
+    # QVariant as a size hint collapses the rows on Qt 5.
+    view = QTreeView()
+    qtbot.addWidget(view)
+    view.setModel(model)
+    view.expandAll()
+    view.show()
+    qtbot.waitExposed(view)
+
+    workflow_index = model.index(0, 0)
+    assert view.visualRect(workflow_index).height() > 0
+    assert view.visualRect(model.index(0, 0, workflow_index)).height() > 0

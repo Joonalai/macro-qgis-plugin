@@ -28,13 +28,11 @@ from typing import Any
 
 from qgis.core import QgsApplication
 from qgis.PyQt.QtCore import (
-    NULL,
     QAbstractItemModel,
     QMimeData,
     QModelIndex,
     QObject,
     Qt,
-    QVariant,
 )
 from qgis.PyQt.QtGui import QBrush, QFont, QPalette
 from qgis.PyQt.QtWidgets import QApplication
@@ -228,14 +226,14 @@ class MacroWorkflowTreeModel(QAbstractItemModel):
         section: int,
         orientation: Qt.Orientation,
         role: Qt.ItemDataRole = Qt.ItemDataRole.DisplayRole,
-    ) -> QVariant:
+    ) -> str | None:
         if (
             section == 0
             and role == Qt.ItemDataRole.DisplayRole
             and orientation == Qt.Orientation.Horizontal
         ):
-            return QVariant(tr("Macro workflow"))
-        return NULL
+            return tr("Macro workflow")
+        return None
 
     def flags(self, index: QModelIndex) -> Qt.ItemFlag:
         """Return the flags for the given index."""
@@ -253,7 +251,7 @@ class MacroWorkflowTreeModel(QAbstractItemModel):
     ) -> Any:
         """Return the data for the given index and role."""
         if not index.isValid():
-            return NULL
+            return None
         workflow = self._parent_workflow(index)
         if workflow is None:
             return self._workflow_data(self.workflows[index.row()], role)
@@ -378,16 +376,14 @@ class MacroWorkflowTreeModel(QAbstractItemModel):
 
     def _workflow_data(self, workflow: MacroWorkflow, role: int) -> Any:
         if role in (Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.EditRole):
-            return QVariant(workflow.name)
+            return workflow.name
         if role == Qt.ItemDataRole.ToolTipRole:
-            return QVariant(
-                tr("{}: {} macros", workflow.name, len(workflow.macro_uids))
-            )
+            return tr("{}: {} macros", workflow.name, len(workflow.macro_uids))
         if role == Qt.ItemDataRole.FontRole:
             font = QFont()
             font.setBold(True)
             return font
-        return NULL
+        return None
 
     def _step_data(self, workflow: MacroWorkflow, row: int, role: int) -> Any:
         macro = self.macros_by_uid().get(workflow.macro_uids[row])
@@ -395,16 +391,14 @@ class MacroWorkflowTreeModel(QAbstractItemModel):
             return QgsApplication.getThemeIcon("/mActionPlay.svg")
         if role == Qt.ItemDataRole.DisplayRole:
             name = macro.name if macro is not None else tr("Missing macro")
-            return QVariant(f"{row + 1}. {name}")
+            return f"{row + 1}. {name}"
         if role == Qt.ItemDataRole.ToolTipRole:
             if macro is None:
-                return QVariant(
-                    tr("The macro of this step has been deleted or failed to load.")
-                )
-            return QVariant(macro.name)
+                return tr("The macro of this step has been deleted or failed to load.")
+            return macro.name
         if macro is None:
             return self._missing_step_style(role)
-        return NULL
+        return None
 
     @staticmethod
     def _missing_step_style(role: int) -> Any:
@@ -417,7 +411,7 @@ class MacroWorkflowTreeModel(QAbstractItemModel):
             font = QFont()
             font.setItalic(True)
             return font
-        return NULL
+        return None
 
     def _playing_step_index(self) -> QModelIndex:
         if self._playing_step is None:
