@@ -11,3 +11,4 @@
 - Fixed playback speed scale
 - Added macro workflows that play existing macros in sequence
 - Saved macro files contain macro workflows
+- Fixed context menus not opening when replaying right clicks
