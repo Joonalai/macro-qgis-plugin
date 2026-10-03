@@ -13,6 +13,7 @@ It can be used as a standalone dependency by any plugin using `qgis-plugin-dev-t
    macro
    macro_recorder
    macro_player
+   macro_workflow
    settings
    exceptions
    utils

@@ -6,14 +6,11 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>278</width>
+    <width>518</width>
     <height>671</height>
    </rect>
   </property>
-  <layout class="QVBoxLayout" name="verticalLayout">
-   <property name="spacing">
-    <number>6</number>
-   </property>
+  <layout class="QVBoxLayout" name="verticalLayout_4">
    <property name="leftMargin">
     <number>0</number>
    </property>
@@ -51,34 +48,9 @@
       </widget>
      </item>
      <item>
-      <widget class="QToolButton" name="button_play">
-       <property name="toolTip">
-        <string>Play selected macro</string>
-       </property>
-       <property name="text">
-        <string/>
-       </property>
-       <property name="checkable">
-        <bool>false</bool>
-       </property>
-       <property name="checked">
-        <bool>false</bool>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <widget class="QToolButton" name="button_delete">
-       <property name="toolTip">
-        <string>Delete all selected macros</string>
-       </property>
-       <property name="text">
-        <string/>
-       </property>
-       <property name="checkable">
-        <bool>false</bool>
-       </property>
-       <property name="checked">
-        <bool>false</bool>
+      <widget class="Line" name="line_record">
+       <property name="orientation">
+        <enum>Qt::Orientation::Vertical</enum>
        </property>
       </widget>
      </item>
@@ -111,7 +83,7 @@
      <item>
       <widget class="Line" name="line">
        <property name="frameShadow">
-        <enum>QFrame::Sunken</enum>
+        <enum>QFrame::Shadow::Sunken</enum>
        </property>
        <property name="lineWidth">
         <number>1</number>
@@ -120,7 +92,7 @@
         <number>0</number>
        </property>
        <property name="orientation">
-        <enum>Qt::Vertical</enum>
+        <enum>Qt::Orientation::Vertical</enum>
        </property>
       </widget>
      </item>
@@ -140,7 +112,7 @@
      <item>
       <spacer name="horizontalSpacer_3">
        <property name="orientation">
-        <enum>Qt::Horizontal</enum>
+        <enum>Qt::Orientation::Horizontal</enum>
        </property>
        <property name="sizeHint" stdset="0">
         <size>
@@ -153,22 +125,204 @@
     </layout>
    </item>
    <item>
-    <widget class="QTableView" name="table_view">
-     <property name="selectionMode">
-      <enum>QAbstractItemView::ExtendedSelection</enum>
+    <widget class="QTabWidget" name="tab_widget">
+     <property name="currentIndex">
+      <number>0</number>
      </property>
-     <property name="showGrid">
-      <bool>false</bool>
-     </property>
-     <property name="sortingEnabled">
-      <bool>true</bool>
-     </property>
-     <property name="cornerButtonEnabled">
-      <bool>false</bool>
-     </property>
-     <attribute name="verticalHeaderMinimumSectionSize">
-      <number>15</number>
-     </attribute>
+     <widget class="QWidget" name="tab_macros">
+      <attribute name="title">
+       <string>All macros</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="verticalLayout">
+       <item>
+        <layout class="QHBoxLayout" name="horizontalLayout_macros">
+         <property name="spacing">
+          <number>2</number>
+         </property>
+         <item>
+          <widget class="QToolButton" name="button_play">
+           <property name="toolTip">
+            <string>Play the selected macro</string>
+           </property>
+           <property name="text">
+            <string/>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QToolButton" name="button_delete">
+           <property name="toolTip">
+            <string>Delete the selected macros</string>
+           </property>
+           <property name="text">
+            <string/>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <spacer name="horizontalSpacer_macros">
+           <property name="orientation">
+            <enum>Qt::Orientation::Horizontal</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>40</width>
+             <height>20</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <widget class="QTableView" name="table_view">
+         <property name="dragEnabled">
+          <bool>true</bool>
+         </property>
+         <property name="dragDropMode">
+          <enum>QAbstractItemView::DragDropMode::DragOnly</enum>
+         </property>
+         <property name="defaultDropAction">
+          <enum>Qt::DropAction::CopyAction</enum>
+         </property>
+         <property name="selectionMode">
+          <enum>QAbstractItemView::SelectionMode::ExtendedSelection</enum>
+         </property>
+         <property name="showGrid">
+          <bool>false</bool>
+         </property>
+         <property name="sortingEnabled">
+          <bool>true</bool>
+         </property>
+         <property name="cornerButtonEnabled">
+          <bool>false</bool>
+         </property>
+         <attribute name="verticalHeaderMinimumSectionSize">
+          <number>15</number>
+         </attribute>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="tab_macro_workflows">
+      <attribute name="title">
+       <string>Macro workflows</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="verticalLayout_3">
+       <item>
+        <layout class="QHBoxLayout" name="horizontalLayout_workflows">
+         <property name="spacing">
+          <number>2</number>
+         </property>
+         <item>
+          <widget class="QToolButton" name="button_play_workflow">
+           <property name="toolTip">
+            <string>Play the selected macro workflow</string>
+           </property>
+           <property name="text">
+            <string/>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="Line" name="line_workflows">
+           <property name="orientation">
+            <enum>Qt::Orientation::Vertical</enum>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QToolButton" name="button_new_workflow">
+           <property name="toolTip">
+            <string>Create a new macro workflow</string>
+           </property>
+           <property name="text">
+            <string/>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QToolButton" name="button_add_step">
+           <property name="toolTip">
+            <string>Add a macro to the selected workflow</string>
+           </property>
+           <property name="text">
+            <string/>
+           </property>
+           <property name="popupMode">
+            <enum>QToolButton::ToolButtonPopupMode::InstantPopup</enum>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QToolButton" name="button_move_step_up">
+           <property name="toolTip">
+            <string>Move the selected macro up</string>
+           </property>
+           <property name="text">
+            <string/>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QToolButton" name="button_move_step_down">
+           <property name="toolTip">
+            <string>Move the selected macro down</string>
+           </property>
+           <property name="text">
+            <string/>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QToolButton" name="button_delete_workflow_item">
+           <property name="toolTip">
+            <string>Delete the selected macro workflow or step</string>
+           </property>
+           <property name="text">
+            <string/>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <spacer name="horizontalSpacer_workflows">
+           <property name="orientation">
+            <enum>Qt::Orientation::Horizontal</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>40</width>
+             <height>20</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <widget class="QTreeView" name="tree_view_workflows">
+         <property name="toolTip">
+          <string>Drag macros from the All macros tab onto a workflow, or between its steps</string>
+         </property>
+         <property name="dragEnabled">
+          <bool>true</bool>
+         </property>
+         <property name="dragDropMode">
+          <enum>QAbstractItemView::DragDropMode::DragDrop</enum>
+         </property>
+         <property name="defaultDropAction">
+          <enum>Qt::DropAction::MoveAction</enum>
+         </property>
+         <property name="selectionMode">
+          <enum>QAbstractItemView::SelectionMode::SingleSelection</enum>
+         </property>
+         <attribute name="headerVisible">
+          <bool>false</bool>
+         </attribute>
+        </widget>
+       </item>
+      </layout>
+     </widget>
     </widget>
    </item>
   </layout>

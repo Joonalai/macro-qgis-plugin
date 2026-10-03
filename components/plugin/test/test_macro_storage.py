@@ -21,8 +21,9 @@ from pathlib import Path
 import pytest
 from qgis.PyQt.QtCore import QModelIndex, Qt
 from qgis_macros.macro import Macro, MacroKeyEvent, WidgetSpec
+from qgis_macros.macro_workflow import MacroWorkflow
 
-from macro_plugin.macro_storage import MacroStorage
+from macro_plugin.macro_storage import MacroStorage, WorkflowStorage
 from macro_plugin.ui.macro_model import MacroTableModel
 
 
@@ -110,3 +111,19 @@ def test_model_reset_macros_does_not_modify_storage(storage: MacroStorage) -> No
     model.reset_macros([_macro("macro")])
 
     assert storage.load_macros() == []
+
+
+def test_save_load_and_delete_workflows(tmp_path: Path) -> None:
+    storage = WorkflowStorage(tmp_path / "workflows")
+    assert storage.load_workflows() == []
+    workflows = [MacroWorkflow("first", ["a", "b"]), MacroWorkflow("second", ["a"])]
+    for workflow in reversed(workflows):
+        storage.save_workflow(workflow)
+    (storage.directory / "0_broken.json").write_text("{}", encoding="utf-8")
+
+    loaded = storage.load_workflows()
+    assert loaded == workflows
+    assert [w.uid for w in loaded] == [w.uid for w in workflows]
+
+    storage.delete_workflow(workflows[0])
+    assert storage.load_workflows() == [workflows[1]]

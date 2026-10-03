@@ -13,4 +13,5 @@ panel, adding a macro panel for recording and playing back macros.
    plugin
    macro_panel
    macro_model
+   workflow_model
    settings_dialog
