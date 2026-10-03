@@ -58,3 +58,11 @@ class InvalidSettingValueError(MacroPluginError):
         super().__init__(
             tr("Invalid value for {} setting: {}", setting_name, setting_value)
         )
+
+
+class MacroNotFoundError(MacroPluginError):
+    """Raised when a workflow refers to a macro that does not exist."""
+
+    def __init__(self, macro_uid: str) -> None:
+        """Initialize with the uid of the missing macro."""
+        super().__init__(tr("Macro {} not found.", macro_uid))

@@ -17,13 +17,25 @@
 #  along with macro-qgis-plugin. If not, see <https://www.gnu.org/licenses/>.
 """Qt table model for displaying macros in the macro panel."""
 
+import json
+from collections.abc import Iterable
 from typing import ClassVar
 
-from qgis.PyQt.QtCore import NULL, QAbstractTableModel, QModelIndex, Qt, QVariant
+from qgis.PyQt.QtCore import (
+    NULL,
+    QAbstractTableModel,
+    QMimeData,
+    QModelIndex,
+    Qt,
+    QVariant,
+)
 from qgis_macros.macro import Macro
 from qgis_plugin_tools.tools.i18n import tr
 
 from macro_plugin.macro_storage import MacroStorage
+
+#: MIME type of a JSON list of macro uids, used to drag macros to workflows.
+MACRO_UIDS_MIME_TYPE = "application/x-qgis-macro-uids"
 
 
 class MacroTableModel(QAbstractTableModel):
@@ -106,8 +118,26 @@ class MacroTableModel(QAbstractTableModel):
         """Return the flags for the given index."""
         default_flags = super().flags(index)
         if index.isValid():
-            return default_flags | Qt.ItemFlag.ItemIsEditable
+            return (
+                default_flags
+                | Qt.ItemFlag.ItemIsEditable
+                | Qt.ItemFlag.ItemIsDragEnabled
+            )
         return default_flags
+
+    def supportedDragActions(self) -> Qt.DropAction:  # noqa: N802, D102
+        return Qt.DropAction.CopyAction
+
+    def mimeTypes(self) -> list[str]:  # noqa: N802, D102
+        return [MACRO_UIDS_MIME_TYPE]
+
+    def mimeData(self, indexes: Iterable[QModelIndex]) -> QMimeData:  # noqa: N802
+        """Return the uids of the macros at *indexes* in row order."""
+        rows = sorted({index.row() for index in indexes if index.isValid()})
+        uids = [self.macros[row].uid for row in rows]
+        mime_data = QMimeData()
+        mime_data.setData(MACRO_UIDS_MIME_TYPE, json.dumps(uids).encode("utf-8"))
+        return mime_data
 
     def data(
         self, index: QModelIndex, role: Qt.ItemDataRole = Qt.ItemDataRole.DisplayRole
