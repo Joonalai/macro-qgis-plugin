@@ -30,6 +30,7 @@ from qgis_plugin_tools.tools.custom_logging import (
 from qgis_plugin_tools.tools.i18n import tr
 
 import macro_plugin
+from macro_plugin import env
 from macro_plugin.ui.macro_panel import MacroToolFactory
 
 if TYPE_CHECKING:
@@ -50,7 +51,7 @@ class MacroPlugin(QObject):
         self._macro_factory = MacroToolFactory()
 
     def initGui(self) -> None:  # noqa: N802
-        """Set up loggers and register the macro panel factory."""
+        """Set up loggers and schedule the macro panel factory registration."""
         self._teardown_loggers = setup_loggers(
             qgis_macros.__name__,
             macro_plugin.__name__,
@@ -58,6 +59,17 @@ class MacroPlugin(QObject):
             message_log_name=self.name,
         )
 
+        if hasattr(iface, "initializationCompleted"):
+            iface.initializationCompleted.connect(self.iface_initialization_completed)
+
+        if bool(env.IS_DEVELOPMENT_MODE):
+            self.iface_initialization_completed()
+
+    def iface_initialization_completed(self) -> None:
+        """Run additional setup for the plugin.
+
+        Executed after initializationCompleted signal is emitted.
+        """
         # Register the macro panel via factory
         iface.registerDevToolWidgetFactory(self._macro_factory)
 
