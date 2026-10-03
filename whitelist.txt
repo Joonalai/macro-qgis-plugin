@@ -84,6 +84,8 @@ selectable
 singleband
 srid
 stacklevel
+submenu
+submenus
 subtests
 taskify
 teardown

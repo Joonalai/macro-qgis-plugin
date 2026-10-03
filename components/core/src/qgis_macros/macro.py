@@ -39,7 +39,7 @@ import uuid
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 from qgis.core import Qgis, QgsApplication, QgsLineString
 from qgis.PyQt.QtCore import QEvent, QPoint, QPointF, Qt
@@ -52,7 +52,7 @@ from qgis.PyQt.QtGui import (
     QWheelEvent,
 )
 from qgis.PyQt.QtTest import QTest
-from qgis.PyQt.QtWidgets import QApplication, QWidget
+from qgis.PyQt.QtWidgets import QApplication, QMenu, QWidget
 
 from qgis_macros import utils
 from qgis_macros.constants import (
@@ -60,8 +60,11 @@ from qgis_macros.constants import (
     MAXIMUM_NEAREST_CANDIDATES,
     MAXIMUM_PARENT_DEPTH,
 )
-from qgis_macros.exceptions import WidgetNotFoundError
+from qgis_macros.exceptions import MenuActionNotFoundError, WidgetNotFoundError
 from qgis_macros.utils import enum_value
+
+if TYPE_CHECKING:
+    from qgis.PyQt.QtGui import QAction
 
 LOGGER = logging.getLogger(__name__)
 
@@ -646,6 +649,77 @@ class MacroMouseDoubleClickEvent(BaseMacroEvent):  # noqa: PLW1641
             and self.button == other.button
             and self.modifiers == other.modifiers
         )
+
+
+@dataclass
+class MacroMenuActionEvent(BaseMacroEvent):  # noqa: PLW1641
+    """Activation of a menu item in an open popup menu.
+
+    The item is identified by the texts of the menu items leading to it, so
+    that submenus are opened on playback regardless of the menu positions.
+    """
+
+    action_path: list[str] = field(default_factory=list)
+
+    def perform_event_action(self, schedule_next: Callable[[], None]) -> None:
+        """Open the submenus on the path and activate the menu item."""
+        menu, action = self._find_root_action()
+        for text in self.action_path[1:]:
+            menu = self._open_submenu(menu, action)
+            action = self._find_action(menu, text)
+        if action.menu() is not None:
+            raise MenuActionNotFoundError(self.action_path)
+
+        menu.setActiveAction(action)
+        schedule_next()
+        # Activate the item like a user would, so that the menus close and
+        # QMenu.exec returns the activated action
+        QTest.keyClick(menu, Qt.Key.Key_Return)
+
+    def _find_root_action(self) -> tuple[QMenu, "QAction"]:
+        if self.action_path:
+            for menu in utils.visible_menus():
+                action = _find_menu_action(menu, self.action_path[0])
+                if action is not None:
+                    return menu, action
+        raise MenuActionNotFoundError(self.action_path)
+
+    def _find_action(self, menu: QMenu, text: str) -> "QAction":
+        action = _find_menu_action(menu, text)
+        if action is None:
+            raise MenuActionNotFoundError(self.action_path)
+        return action
+
+    def _open_submenu(self, menu: QMenu, action: "QAction") -> QMenu:
+        submenu = action.menu()
+        if submenu is None:
+            raise MenuActionNotFoundError(self.action_path)
+        # Making the item active opens its submenu
+        menu.setActiveAction(action)
+        QgsApplication.processEvents()
+        if not submenu.isVisible():
+            raise MenuActionNotFoundError(self.action_path)
+        return submenu
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, MacroMenuActionEvent):
+            return NotImplemented
+        return super().__eq__(other) and self.action_path == other.action_path
+
+
+def _find_menu_action(menu: QMenu, text: str) -> "QAction | None":
+    """Return the visible and enabled item of *menu* with *text*."""
+    return next(
+        (
+            action
+            for action in menu.actions()
+            if action.isVisible()
+            and action.isEnabled()
+            and not action.isSeparator()
+            and utils.menu_item_text(action) == text
+        ),
+        None,
+    )
 
 
 def _context_menu_opens_on_release() -> bool:

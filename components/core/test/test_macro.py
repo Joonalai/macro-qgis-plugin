@@ -16,7 +16,7 @@
 #  You should have received a copy of the GNU General Public License
 #  along with macro-qgis-plugin. If not, see <https://www.gnu.org/licenses/>.
 import pytest
-from qgis_macros.macro import Macro, Position
+from qgis_macros.macro import Macro, MacroMenuActionEvent, Position, WidgetSpec
 
 pytest_plugins = [
     "macro_test_utils.macro_fixture",
@@ -77,3 +77,21 @@ def test_position_interpolation(
     expected_positions: list[Position],
 ):
     assert Position.interpolate(positions, number_of_positions) == expected_positions
+
+
+def test_menu_action_event_serialization() -> None:
+    macro = Macro(
+        events=[
+            MacroMenuActionEvent(
+                WidgetSpec("QMenu"), ms_since_last_event=5, action_path=["A", "b"]
+            )
+        ],
+        name="menu",
+    )
+
+    deserialized = Macro.deserialize(macro.serialize())
+
+    assert deserialized == macro
+    event = deserialized.events[0]
+    assert isinstance(event, MacroMenuActionEvent)
+    assert event.action_path == ["A", "b"]

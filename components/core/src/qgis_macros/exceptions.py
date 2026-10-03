@@ -42,6 +42,14 @@ class WidgetNotFoundError(MacroPluginError):
         )
 
 
+class MenuActionNotFoundError(MacroPluginError):
+    """Exception raised when a menu item is not found in the open menus."""
+
+    def __init__(self, action_path: list[str]) -> None:
+        """Initialize with the texts of the menu items leading to the item."""
+        super().__init__(tr("Menu item {} not found.", " > ".join(action_path)))
+
+
 class MacroPlaybackEndedError(MacroPluginError):
     """Raised when macro playback ends due to an error."""
 

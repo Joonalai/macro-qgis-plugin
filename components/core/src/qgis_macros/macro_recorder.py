@@ -17,17 +17,21 @@
 #  along with macro-qgis-plugin. If not, see <https://www.gnu.org/licenses/>.
 """Event filter-based macro recorder that captures user interactions."""
 
-from typing import cast
+import contextlib
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, cast
 
 from qgis.PyQt.QtCore import QElapsedTimer, QEvent, QObject
 from qgis.PyQt.QtGui import QKeyEvent, QMouseEvent, QWheelEvent
-from qgis.PyQt.QtWidgets import QApplication, QWidget
+from qgis.PyQt.QtWidgets import QApplication, QMenu, QWidget
 
+from qgis_macros import utils
 from qgis_macros.macro import (
     LOGGER,
     Macro,
     MacroEvent,
     MacroKeyEvent,
+    MacroMenuActionEvent,
     MacroMouseDoubleClickEvent,
     MacroMouseEvent,
     MacroMouseMoveEvent,
@@ -38,6 +42,17 @@ from qgis_macros.macro import (
 )
 from qgis_macros.settings import Settings
 from qgis_macros.utils import enum_value
+
+if TYPE_CHECKING:
+    from qgis.PyQt.QtGui import QAction
+
+
+@dataclass
+class _WatchedMenuItem:
+    menu: QMenu
+    action: "QAction"
+    action_path: list[str]
+    release_event: MacroMouseEvent | None
 
 
 class MacroRecorder(QObject):
@@ -65,6 +80,12 @@ class MacroRecorder(QObject):
         self._recording = False
         self._filter_out_mouse_movements = filter_out_mouse_movements
         self._widgets_to_filter_events_out: list[QWidget] = []
+        # Mouse events inside popup menus, replaced by a menu action event
+        # when a menu item is activated
+        self._menu_mouse_events: list[MacroEvent] = []
+        self._menu_pressed_buttons: set[int] = set()
+        # Menu item under a mouse release, recorded if the menu triggers it
+        self._watched_menu_item: _WatchedMenuItem | None = None
 
     def add_widget_to_filter_events_out(self, widget: QWidget) -> None:
         """Add a widget to filter events out from the recorded events."""
@@ -77,6 +98,8 @@ class MacroRecorder(QObject):
     def start_recording(self) -> None:
         """Start recording user actions."""
         self._recorded_events.clear()
+        self._menu_mouse_events.clear()
+        self._menu_pressed_buttons.clear()
         self._recording = True
         self._timer.restart()
         QApplication.instance().installEventFilter(self)
@@ -89,6 +112,7 @@ class MacroRecorder(QObject):
         if not self._recording:
             return Macro([])
         self._recording = False
+        self._stop_watching_menu_item()
         QApplication.instance().removeEventFilter(self)
         events = (
             self._get_filtered_events()
@@ -122,7 +146,12 @@ class MacroRecorder(QObject):
             QEvent.Type.MouseButtonPress,
             QEvent.Type.MouseButtonRelease,
         ]:
-            self._record_mouse_button_event(event, widget, ms_since_last_event)
+            self._stop_watching_menu_item()
+            macro_event = self._record_mouse_button_event(
+                event, widget, ms_since_last_event
+            )
+            if event.type() == QEvent.Type.MouseButtonRelease:
+                self._watch_menu_item(event, widget, macro_event)
         elif event.type() == QEvent.Type.MouseButtonDblClick:
             self._record_mouse_button_double_click_event(
                 event, widget, ms_since_last_event
@@ -221,7 +250,7 @@ class MacroRecorder(QObject):
 
     def _record_mouse_button_event(
         self, event: QMouseEvent, widget: QWidget, elapsed: int
-    ) -> None:
+    ) -> MacroMouseEvent | None:
         """Record mouse button press or release events."""
         macro_event = MacroMouseEvent(
             ms_since_last_event=elapsed,
@@ -242,10 +271,85 @@ class MacroRecorder(QObject):
                     previous_event.button == macro_event.button
                     and previous_event.is_release == macro_event.is_release
                 ):
-                    return
+                    return None
                 break
 
         self._recorded_events.append(macro_event)
+        if isinstance(widget, QMenu):
+            # A release belongs to the menu only if the press was in a menu
+            # too. The release of a right click that opened a context menu
+            # is kept so that the press has its release on playback.
+            if not macro_event.is_release:
+                self._menu_pressed_buttons.add(macro_event.button)
+                self._menu_mouse_events.append(macro_event)
+            elif macro_event.button in self._menu_pressed_buttons:
+                self._menu_pressed_buttons.discard(macro_event.button)
+                self._menu_mouse_events.append(macro_event)
+        return macro_event
+
+    def _watch_menu_item(
+        self,
+        event: QMouseEvent,
+        widget: QWidget,
+        release_event: MacroMouseEvent | None,
+    ) -> None:
+        """Record the menu item under a mouse release if the menu triggers it.
+
+        Menu items are recorded by their texts instead of their positions,
+        because submenus open only when their item is hovered long enough.
+        The menu decides whether a release activates the item, e.g. the
+        release of the right click that opened a context menu does not.
+        """
+        if not isinstance(widget, QMenu):
+            return
+        action = widget.actionAt(utils.event_pos(event))
+        if action is None or action.menu() is not None or action.isSeparator():
+            return
+        # The path must be read while the menus are still open
+        self._watched_menu_item = _WatchedMenuItem(
+            menu=widget,
+            action=action,
+            action_path=utils.menu_action_path(widget, action),
+            release_event=release_event,
+        )
+        widget.triggered.connect(self._menu_item_triggered)
+
+    def _stop_watching_menu_item(self) -> None:
+        watched = self._watched_menu_item
+        self._watched_menu_item = None
+        if watched is not None:
+            with contextlib.suppress(TypeError, RuntimeError):
+                watched.menu.triggered.disconnect(self._menu_item_triggered)
+
+    def _menu_item_triggered(self, action: "QAction") -> None:
+        """Replace the mouse events inside the menus with a menu action."""
+        watched = self._watched_menu_item
+        self._stop_watching_menu_item()
+        if watched is None or action is not watched.action:
+            return
+
+        elapsed = 0
+        if (
+            watched.release_event is not None
+            and self._recorded_events
+            and self._recorded_events[-1] is watched.release_event
+        ):
+            elapsed += self._recorded_events.pop().ms_since_last_event
+        while self._recorded_events and any(
+            self._recorded_events[-1] is menu_event
+            for menu_event in self._menu_mouse_events
+        ):
+            elapsed += self._recorded_events.pop().ms_since_last_event
+        self._menu_mouse_events.clear()
+        self._menu_pressed_buttons.clear()
+
+        self._recorded_events.append(
+            MacroMenuActionEvent(
+                widget_spec=WidgetSpec.create(watched.menu),
+                ms_since_last_event=elapsed,
+                action_path=watched.action_path,
+            )
+        )
 
     def _record_mouse_button_double_click_event(
         self, event: QMouseEvent, widget: QWidget, elapsed: int
@@ -269,16 +373,17 @@ class MacroRecorder(QObject):
         if isinstance(last_event, MacroMouseMoveEvent):
             last_event.add_position(current_position)
         else:
-            self._recorded_events.append(
-                MacroMouseMoveEvent(
-                    widget_spec=WidgetSpec.create(widget),
-                    ms_since_last_event=0,
-                    positions=[current_position],
-                    buttons=enum_value(event.buttons()),
-                    modifiers=enum_value(event.modifiers()),
-                    widget_path=WidgetPath.create(widget),
-                )
+            move_event = MacroMouseMoveEvent(
+                widget_spec=WidgetSpec.create(widget),
+                ms_since_last_event=0,
+                positions=[current_position],
+                buttons=enum_value(event.buttons()),
+                modifiers=enum_value(event.modifiers()),
+                widget_path=WidgetPath.create(widget),
             )
+            self._recorded_events.append(move_event)
+            if isinstance(widget, QMenu):
+                self._menu_mouse_events.append(move_event)
 
     def _record_mouse_wheel_event(self, event: QWheelEvent, widget: QWidget) -> None:
         """Record mouse wheel events."""

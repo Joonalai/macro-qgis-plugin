@@ -26,11 +26,14 @@ from typing import (
 
 from qgis.PyQt.QtCore import QObject, QPoint
 from qgis.PyQt.QtGui import QMouseEvent, QWheelEvent
-from qgis.PyQt.QtWidgets import QAbstractButton, QWidget
+from qgis.PyQt.QtWidgets import QAbstractButton, QApplication, QMenu, QWidget
 from qgis.utils import iface as iface_
+
+from qgis_macros.constants import MAXIMUM_PARENT_DEPTH
 
 if TYPE_CHECKING:
     from qgis.gui import QgisInterface
+    from qgis.PyQt.QtGui import QAction
 
 iface = cast("QgisInterface", iface_)
 
@@ -116,3 +119,50 @@ def event_global_pos(event: QMouseEvent | QWheelEvent) -> QPoint:
     if hasattr(event, "globalPosition"):
         return event.globalPosition().toPoint()
     return event.globalPos()
+
+
+def menu_item_text(action: "QAction") -> str:
+    """Return the text of a menu item without mnemonics and shortcuts."""
+    text = action.text().split("\t")[0]
+    return text.replace("&&", "\0").replace("&", "").replace("\0", "&")
+
+
+def visible_menus() -> list[QMenu]:
+    """Return the visible popup menus, the active popup first."""
+    menus = [
+        widget
+        for widget in QApplication.topLevelWidgets()
+        if isinstance(widget, QMenu) and widget.isVisible()
+    ]
+    active_popup = QApplication.activePopupWidget()
+    if active_popup in menus:
+        menus.remove(active_popup)
+        menus.insert(0, active_popup)
+    return menus
+
+
+def menu_action_path(menu: QMenu, action: "QAction") -> list[str]:
+    """Return the texts of the menu items leading to *action*.
+
+    The path starts from the outermost visible menu, e.g.
+    ``["Styles", "fast"]`` for an item of the Styles submenu.
+    """
+    path = [menu_item_text(action)]
+    menus = visible_menus()
+    current = menu
+    for _ in range(MAXIMUM_PARENT_DEPTH):
+        parent = next(
+            (
+                (parent_menu, parent_action)
+                for parent_menu in menus
+                if parent_menu is not current
+                for parent_action in parent_menu.actions()
+                if parent_action.menu() is current
+            ),
+            None,
+        )
+        if parent is None:
+            break
+        current, parent_action = parent
+        path.insert(0, menu_item_text(parent_action))
+    return path
