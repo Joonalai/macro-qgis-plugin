@@ -189,6 +189,30 @@ def test_macro_player_should_menu_action(
         macro_player.play(menu_action_click_macro)
 
 
+def test_macro_player_right_click_should_request_context_menu(
+    dialog_widget_positions: dict[str, WidgetInfo],
+    macro_player: MacroPlayer,
+    dialog: "Dialog",
+    qtbot: "QtBot",
+):
+    # Widgets such as the QGIS layer tree open their context menu from the
+    # context menu event that Qt creates for a right click
+    dialog.button.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+    macro = Macro(
+        events=macro_utils.widget_clicking_macro_events(
+            dialog_widget_positions["button"],
+            button=enum_value(Qt.MouseButton.RightButton),
+        )
+    )
+
+    with qtbot.waitSignals(
+        [macro_player.playback_ended, dialog.button.customContextMenuRequested],
+        check_params_cbs=[_check_successfull, None],
+        timeout=TIMEOUT,
+    ):
+        macro_player.play(macro)
+
+
 def test_macro_player_should_click_list_widget_item(
     list_view_item_click_macro: Macro,
     macro_player: MacroPlayer,

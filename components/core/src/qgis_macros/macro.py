@@ -33,6 +33,7 @@ Example usage::
 
 import dataclasses
 import logging
+import sys
 import time
 import uuid
 from abc import ABC, abstractmethod
@@ -42,7 +43,14 @@ from typing import Protocol
 
 from qgis.core import Qgis, QgsApplication, QgsLineString
 from qgis.PyQt.QtCore import QEvent, QPoint, QPointF, Qt
-from qgis.PyQt.QtGui import QCursor, QKeyEvent, QMouseEvent, QWheelEvent
+from qgis.PyQt.QtGui import (
+    QContextMenuEvent,
+    QCursor,
+    QGuiApplication,
+    QKeyEvent,
+    QMouseEvent,
+    QWheelEvent,
+)
 from qgis.PyQt.QtTest import QTest
 from qgis.PyQt.QtWidgets import QApplication, QWidget
 
@@ -534,6 +542,25 @@ class MacroMouseEvent(BaseMacroEvent):  # noqa: PLW1641
                 Qt.KeyboardModifiers(self.modifiers),
                 corrected_position.local_point,
             )
+        if self._triggers_context_menu():
+            # Qt creates the context menu event when the window receives the
+            # mouse event, which QTest bypasses by sending it to the widget
+            QApplication.postEvent(
+                widget,
+                QContextMenuEvent(
+                    QContextMenuEvent.Reason.Mouse,
+                    corrected_position.local_point,
+                    corrected_position.global_point,
+                    Qt.KeyboardModifiers(self.modifiers),
+                ),
+            )
+
+    def _triggers_context_menu(self) -> bool:
+        """Check if Qt would open a context menu for this event."""
+        return (
+            self.button == enum_value(Qt.MouseButton.RightButton)
+            and self.is_release == _context_menu_opens_on_release()
+        )
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, MacroMouseEvent):
@@ -619,6 +646,15 @@ class MacroMouseDoubleClickEvent(BaseMacroEvent):  # noqa: PLW1641
             and self.button == other.button
             and self.modifiers == other.modifiers
         )
+
+
+def _context_menu_opens_on_release() -> bool:
+    """Check if context menus open on mouse release instead of press."""
+    style_hints = QGuiApplication.styleHints()
+    # The trigger is configurable since Qt 6.8
+    if hasattr(style_hints, "contextMenuTrigger"):
+        return style_hints.contextMenuTrigger() == Qt.ContextMenuTrigger.Release
+    return sys.platform == "win32"
 
 
 def new_macro_uid() -> str:
