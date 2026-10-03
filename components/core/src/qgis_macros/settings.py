@@ -112,7 +112,7 @@ class Settings(enum.Enum):
     speed = Setting(
         description=tr("Macro playback speed"),
         default=1.0,
-        widget_config=WidgetConfig(minimum=0.0, maximum=100.0, step=0.1),
+        widget_config=WidgetConfig(minimum=0.1, maximum=100.0, step=0.1),
     )
     profile_macros = Setting(
         description=tr("Profile macro runtime"),

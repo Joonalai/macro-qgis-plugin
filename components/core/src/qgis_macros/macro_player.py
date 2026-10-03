@@ -38,6 +38,8 @@ from qgis_macros.macro import Macro, MacroEvent
 
 LOGGER = logging.getLogger(__name__)
 
+MIN_PLAYBACK_SPEED = 0.1
+
 
 class MacroPlaybackStatus(enum.Enum):
     """Status of a completed macro playback."""
@@ -80,6 +82,11 @@ class MacroPlayer(QObject):
         """Set the playback speed."""
         self._speed = speed
 
+    def _wait_time(self, ms_since_last_event: int) -> int:
+        """Scale the recorded delay so that a higher speed means a shorter wait."""
+        speed = max(self._speed, MIN_PLAYBACK_SPEED)
+        return int(ms_since_last_event / speed) + 15
+
     def play(self, macro: Macro) -> None:
         """Play back the recorded events asynchronously."""
         self._playback_halted = False
@@ -101,8 +108,10 @@ class MacroPlayer(QObject):
         macro_event = self._event_queue.pop(0)
 
         def on_event_finished() -> None:
-            wait_time = int(macro_event.ms_since_last_event * self._speed) + 15
-            QTimer.singleShot(wait_time, self._play_next_event)
+            QTimer.singleShot(
+                self._wait_time(macro_event.ms_since_last_event),
+                self._play_next_event,
+            )
 
         try:
             LOGGER.debug("Playing event: %s", macro_event)

@@ -76,6 +76,17 @@ def widget_listener() -> Iterator[WidgetEventListener]:
         listener.stop_listening()
 
 
+@pytest.mark.parametrize(
+    ("speed", "expected"),
+    [(1.0, 1015), (2.0, 515), (0.5, 2015), (0.0, 10015)],
+    ids=["normal", "faster", "slower", "zero_clamped"],
+)
+def test_macro_player_wait_time_should_scale_inversely_with_speed(
+    speed: float, expected: int
+):
+    assert MacroPlayer(speed)._wait_time(1000) == expected
+
+
 def test_macro_player_should_click_button(
     button_click_macro: Macro,
     macro_player: MacroPlayer,
