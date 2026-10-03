@@ -135,9 +135,9 @@ class Settings(enum.Enum):
     )
     move_event_interpolation_count = Setting(
         description=tr(
-            "How many points mouse move events should have. "
-            "If point count is higher, "
-            "points are interpolated along the line."
+            "Maximum number of points recorded per mouse movement. "
+            "Longer movements are simplified to this many evenly "
+            "spaced points along the recorded path."
         ),
         default=4,
         widget_config=WidgetConfig(minimum=2, maximum=10000),
