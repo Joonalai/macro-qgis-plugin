@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fixed release process
+
 ## 1.0.0 - 2026-10-03
 
 - Updated dependencies and added bandit security checks
