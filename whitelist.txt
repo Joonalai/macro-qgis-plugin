@@ -41,6 +41,7 @@ hookimpl
 hookwrapper
 i18n
 iface
+isdeleted
 isprintable
 joinpath
 levelname
@@ -55,6 +56,7 @@ num
 osgeo
 osr
 param
+parameterless
 params
 pointz
 polyline
@@ -87,6 +89,7 @@ stacklevel
 submenu
 submenus
 subtests
+svg
 taskify
 teardown
 tmp

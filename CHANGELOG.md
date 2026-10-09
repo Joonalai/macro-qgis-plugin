@@ -8,6 +8,9 @@
 - Widget paths find windows by object name, so macros play in other projects
 - Widgets and menu items are matched by object name, so macros play in other locales
 - Macros record the locale and the panel warns when playing with another one
+- Macros and macro workflows are registered as parameterless processing algorithms, so they can be run from the Processing toolbox and used as steps of graphical models
+- Added `MacroPlayer.stop()` to stop an ongoing playback
+- Key events are replayed on the recorded widget, so typing works while another window (e.g. the model designer or a processing dialog) is active
 
 ## 1.0.1 - 2026-10-04
 

@@ -129,6 +129,36 @@ def find_widget(path: "WidgetPath") -> QWidget | None:
     return None
 
 
+def path_leads_to(path: "WidgetPath", widget: QWidget) -> bool:
+    """Check whether *path* describes *widget*, without searching the windows.
+
+    Each ancestor of *widget* must be the child that :func:`find_child`
+    picks first for the corresponding node, i.e. have the sibling index of
+    the node and match it exactly, and the window must match by its object
+    name or title. This is much cheaper than :func:`find_widget`.
+    """
+    current = widget
+    for node in reversed(path.nodes):
+        parent = current.parentWidget()
+        if (
+            parent is None
+            or current.isWindow()
+            or not node.matches(current, exact=True)
+            or utils.get_sibling_index(current, parent) != node.sibling_index
+        ):
+            return False
+        current = parent
+    if (
+        not current.isWindow()
+        or not current.isVisible()
+        or current.windowType() == Qt.WindowType.Popup
+    ):
+        return False
+    if path.window_object_name and current.objectName() == path.window_object_name:
+        return True
+    return current.windowTitle() == path.window_title
+
+
 def _matching_windows(path: "WidgetPath") -> list[QWidget]:
     """Return the visible windows matching *path*, by object name or title.
 

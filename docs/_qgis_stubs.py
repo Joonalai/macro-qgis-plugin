@@ -142,6 +142,11 @@ def install_stubs() -> None:
             "Qgis": _qgis_class(),
             "QgsApplication": _Stub(),
             "QgsLineString": _Stub,
+            "QgsProcessingAlgorithm": _QObjectStub,
+            "QgsProcessingContext": _QObjectStub,
+            "QgsProcessingFeedback": _QObjectStub,
+            "QgsProcessingProvider": _QObjectStub,
+            "QgsProcessingException": type("QgsProcessingException", (Exception,), {}),
         },
     )
     qgis.core = qgis_core
