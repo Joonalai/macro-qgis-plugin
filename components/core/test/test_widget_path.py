@@ -62,6 +62,23 @@ def test_widget_path_finds_non_button_widgets(dialog: Dialog) -> None:
         assert found is widget, f"Failed to find {widget_name}"
 
 
+def test_widget_path_leads_to_its_widget_only(dialog: Dialog) -> None:
+    path = require(WidgetPath.create(dialog.button))
+
+    assert widget_lookup.path_leads_to(path, dialog.button)
+    assert not widget_lookup.path_leads_to(path, dialog.button2)
+    assert not widget_lookup.path_leads_to(path, dialog.line_edit)
+    assert not widget_lookup.path_leads_to(path, dialog)
+
+
+def test_widget_path_leads_to_widget_by_window_object_name(dialog: Dialog) -> None:
+    dialog.setObjectName("test_dialog")
+    path = require(WidgetPath.create(dialog.line_edit))
+    dialog.setWindowTitle("Changed title")
+
+    assert widget_lookup.path_leads_to(path, dialog.line_edit)
+
+
 def test_widget_path_returns_none_for_missing_window(dialog: Dialog) -> None:
     path = WidgetPath(
         window_title="nonexistent window title",

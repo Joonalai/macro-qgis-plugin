@@ -23,8 +23,9 @@ from functools import partial
 from pathlib import Path
 from typing import Any
 
-from qgis.core import QgsApplication
+from qgis.core import QgsApplication, QgsProcessingProvider
 from qgis.gui import QgsDevToolWidget, QgsDevToolWidgetFactory
+from qgis.PyQt import sip
 from qgis.PyQt.QtCore import QModelIndex, QPoint, Qt
 from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import (
@@ -48,7 +49,7 @@ from qgis_macros.macro_player import (
 from qgis_macros.macro_recorder import MacroRecorder
 from qgis_macros.macro_workflow import MacroWorkflow
 from qgis_macros.settings import Settings
-from qgis_macros.utils import current_locale
+from qgis_macros.utils import enum_value
 from qgis_plugin_tools.tools.custom_logging import bar_msg
 from qgis_plugin_tools.tools.decorations import log_if_fails
 from qgis_plugin_tools.tools.i18n import tr
@@ -62,6 +63,15 @@ from macro_plugin.macro_storage import (
     default_autosave_directory,
     default_workflow_directory,
 )
+from macro_plugin.playback import (
+    end_profiling,
+    locale_mismatch_message,
+    start_profiling,
+)
+from macro_plugin.processing_provider import (
+    MacroProcessingProvider,
+    MacroWorkflowProcessingProvider,
+)
 from macro_plugin.ui.macro_model import MacroTableModel
 from macro_plugin.ui.settings_dialog import SettingsDialog
 from macro_plugin.ui.workflow_model import MacroWorkflowTreeModel
@@ -74,6 +84,13 @@ WORKFLOW_NAME_PREFIX = "workflow"
 
 def _macro_file_filter() -> str:
     return tr("Macro Files (*.json);;All Files (*)")
+
+
+def _live_provider[T: QgsProcessingProvider](provider: T | None) -> T | None:
+    """Return *provider* unless the processing registry has deleted it."""
+    if provider is None or sip.isdeleted(provider):
+        return None
+    return provider
 
 
 UI_CLASS: QWidget = load_ui_from_file(
@@ -108,13 +125,16 @@ class MacroPanel(UI_CLASS, QgsDevToolWidget):  # type: ignore
     table_view: QTableView
     tree_view_workflows: QTreeView
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         macro_recorder: MacroRecorder,
         macro_player: MacroPlayer,
         macro_storage: MacroStorage | None = None,
         parent: QWidget | None = None,
         workflow_storage: WorkflowStorage | None = None,
+        *,
+        macro_provider: MacroProcessingProvider | None = None,
+        workflow_provider: MacroWorkflowProcessingProvider | None = None,
     ) -> None:
         """Initialize the panel.
 
@@ -127,6 +147,10 @@ class MacroPanel(UI_CLASS, QgsDevToolWidget):  # type: ignore
         :param parent: Optional parent QWidget for UI hierarchy.
         :param workflow_storage: Optional storage for autosaving macro
             workflows. Stored workflows are loaded into the panel.
+        :param macro_provider: Optional processing provider that is kept in
+            sync with the macros of the panel.
+        :param workflow_provider: Optional processing provider that is kept in
+            sync with the macro workflows of the panel.
         """
         super().__init__(parent)
         self.setupUi(self)
@@ -151,6 +175,10 @@ class MacroPanel(UI_CLASS, QgsDevToolWidget):  # type: ignore
         )
         if workflow_storage is not None:
             self._workflow_model.reset_workflows(workflow_storage.load_workflows())
+
+        self._macro_provider = macro_provider
+        self._workflow_provider = workflow_provider
+        self._configure_processing_providers()
 
         self._configure_table()
         self._configure_workflow_tree()
@@ -200,6 +228,73 @@ class MacroPanel(UI_CLASS, QgsDevToolWidget):  # type: ignore
         self._add_step_menu = QMenu(self)
         self._add_step_menu.aboutToShow.connect(self._populate_add_step_menu)
         self.button_add_step.setMenu(self._add_step_menu)
+
+    def _configure_processing_providers(self) -> None:
+        """Keep the processing providers in sync with the models."""
+        if self._macro_provider is None and self._workflow_provider is None:
+            return
+        for signal in (
+            self._model.rowsInserted,
+            self._model.rowsRemoved,
+            self._model.modelReset,
+        ):
+            signal.connect(self._macros_changed)
+        self._model.dataChanged.connect(self._macro_data_changed)
+        self._workflow_model.modelReset.connect(self._sync_workflow_provider)
+        # Changes to the steps of a workflow do not affect the algorithms
+        for signal in (
+            self._workflow_model.rowsInserted,
+            self._workflow_model.rowsRemoved,
+        ):
+            signal.connect(self._workflow_rows_changed)
+        self._workflow_model.dataChanged.connect(self._workflow_data_changed)
+        self._sync_macro_provider()
+        self._sync_workflow_provider()
+
+    def _macros_changed(self, *args: Any) -> None:  # noqa: ARG002
+        self._sync_macro_provider()
+        # The workflow algorithms resolve their steps when run, so only the
+        # macros of the workflow provider are updated
+        workflow_provider = _live_provider(self._workflow_provider)
+        if workflow_provider is not None:
+            workflow_provider.set_macros_by_uid(self._workflow_model.macros_by_uid())
+
+    def _macro_data_changed(
+        self,
+        top_left: QModelIndex,  # noqa: ARG002
+        bottom_right: QModelIndex,  # noqa: ARG002
+        roles: Iterable[int] = (),
+    ) -> None:
+        # Only the names of the macros are shown by the algorithms
+        name_roles = {
+            enum_value(Qt.ItemDataRole.DisplayRole),
+            enum_value(Qt.ItemDataRole.EditRole),
+        }
+        roles = [enum_value(role) for role in roles]
+        if not roles or name_roles.intersection(roles):
+            self._sync_macro_provider()
+
+    def _workflow_rows_changed(self, parent: QModelIndex, *args: Any) -> None:  # noqa: ARG002
+        if not parent.isValid():
+            self._sync_workflow_provider()
+
+    def _workflow_data_changed(self, top_left: QModelIndex, *args: Any) -> None:  # noqa: ARG002
+        if not top_left.parent().isValid():
+            self._sync_workflow_provider()
+
+    def _sync_macro_provider(self, *args: Any) -> None:  # noqa: ARG002
+        """Register the current macros as processing algorithms."""
+        macro_provider = _live_provider(self._macro_provider)
+        if macro_provider is not None:
+            macro_provider.set_macros(self._model.macros)
+
+    def _sync_workflow_provider(self, *args: Any) -> None:  # noqa: ARG002
+        """Register the current workflows as processing algorithms."""
+        workflow_provider = _live_provider(self._workflow_provider)
+        if workflow_provider is not None:
+            workflow_provider.set_workflows(
+                self._workflow_model.workflows, self._workflow_model.macros_by_uid()
+            )
 
     def _configure_buttons(self) -> None:
         """Configure buttons with icons, tooltips, and connect them to actions."""
@@ -364,10 +459,7 @@ class MacroPanel(UI_CLASS, QgsDevToolWidget):  # type: ignore
     def _play_next_macro(self) -> None:
         macro, self._played_step = self._play_queue.pop(0)
         self._warn_about_locale(macro)
-        if Settings.profile_macros.get():
-            require(QgsApplication.profiler()).start(
-                f"Macro: {macro.name}", Settings.profile_macro_group.get()
-            )
+        start_profiling(macro)
 
         self._last_played_macro_name = macro.name
         if self._played_workflow is not None and self._played_step is not None:
@@ -379,18 +471,9 @@ class MacroPanel(UI_CLASS, QgsDevToolWidget):  # type: ignore
     @staticmethod
     def _warn_about_locale(macro: Macro) -> None:
         """Warn if the macro was recorded with another user interface locale."""
-        locale = current_locale()
-        if macro.locale and macro.locale != locale:
-            MsgBar.warning(
-                tr("Macro recorded with another locale"),
-                tr(
-                    "Macro '{}' was recorded with locale {} but the current locale "
-                    "is {}. Widgets and menu items may not be found.",
-                    macro.name,
-                    macro.locale,
-                    locale,
-                ),
-            )
+        message = locale_mismatch_message(macro)
+        if message is not None:
+            MsgBar.warning(tr("Macro recorded with another locale"), message)
 
     def _finish_playback(self) -> None:
         self._play_queue.clear()
@@ -400,8 +483,7 @@ class MacroPanel(UI_CLASS, QgsDevToolWidget):  # type: ignore
 
     @log_if_fails
     def _macro_playback_ended(self, macro_report: MacroPlaybackReport) -> None:
-        if Settings.profile_macros.get():
-            require(QgsApplication.profiler()).end(Settings.profile_macro_group.get())
+        end_profiling()
         workflow = self._played_workflow
         step = self._played_step
         if macro_report.status == MacroPlaybackStatus.FAILURE:
@@ -811,9 +893,21 @@ class MacroToolFactory(QgsDevToolWidgetFactory):
     within the QGIS development tool framework.
     """
 
-    def __init__(self) -> None:
-        """Initialize the factory with a name and icon."""
+    def __init__(
+        self,
+        macro_provider: MacroProcessingProvider | None = None,
+        workflow_provider: MacroWorkflowProcessingProvider | None = None,
+    ) -> None:
+        """Initialize the factory with a name and icon.
+
+        :param macro_provider: Optional processing provider that the created
+            panels keep in sync with their macros.
+        :param workflow_provider: Optional processing provider that the created
+            panels keep in sync with their macro workflows.
+        """
         super().__init__(tr("Macro dev tool"), QIcon(resources_path("icons/icon.svg")))
+        self._macro_provider = macro_provider
+        self._workflow_provider = workflow_provider
 
     def createWidget(self, parent: QWidget | None = None) -> MacroPanel:  # noqa: N802
         """Create a new MacroPanel instance."""
@@ -828,4 +922,6 @@ class MacroToolFactory(QgsDevToolWidgetFactory):
             storage,
             parent,
             workflow_storage,
+            macro_provider=self._macro_provider,
+            workflow_provider=self._workflow_provider,
         )

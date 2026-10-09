@@ -29,6 +29,7 @@ Example::
 import enum
 import logging
 from dataclasses import dataclass
+from functools import partial
 
 from qgis.core import QgsApplication
 from qgis.PyQt.QtCore import QElapsedTimer, QObject, QTimer, pyqtSignal
@@ -46,7 +47,6 @@ class MacroPlaybackStatus(enum.Enum):
 
     SUCCESS = enum.auto()
     FAILURE = enum.auto()
-    # TODO: implement stopped  # noqa: TD003
     STOPPED = enum.auto()
 
 
@@ -75,8 +75,11 @@ class MacroPlayer(QObject):
         super().__init__()
         self._speed = playback_speed
         self._timer = QElapsedTimer()
-        self._playback_halted = False
+        self._playing = False
         self._event_queue: list[MacroEvent] = []
+        # Incremented whenever a playback starts or ends, so that the events
+        # scheduled by an earlier playback are not played
+        self._playback_id = 0
 
     def set_speed(self, speed: float) -> None:
         """Set the playback speed."""
@@ -87,30 +90,62 @@ class MacroPlayer(QObject):
         speed = max(self._speed, MIN_PLAYBACK_SPEED)
         return int(ms_since_last_event / speed) + 15
 
+    def is_playing(self) -> bool:
+        """Return whether a macro is being played back."""
+        return self._playing
+
     def play(self, macro: Macro) -> None:
         """Play back the recorded events asynchronously."""
-        self._playback_halted = False
+        self._playback_id += 1
+        self._playing = True
         self._event_queue = macro.events[:]
         LOGGER.info("Playing macro %s", macro.name)
-        self._play_next_event()
+        self._play_next_event(self._playback_id)
 
-    def _play_next_event(self) -> None:
-        if self._playback_halted:
+    def stop(self) -> None:
+        """Stop the ongoing playback.
+
+        The remaining events are not played and :attr:`playback_ended` is
+        emitted with :attr:`MacroPlaybackStatus.STOPPED`. Does nothing if no
+        macro is being played.
+        """
+        if not self._playing:
+            return
+        self._halt()
+        LOGGER.info("Macro playback stopped.")
+        self._end_playback(MacroPlaybackReport(MacroPlaybackStatus.STOPPED))
+
+    def _halt(self) -> None:
+        # Events scheduled by the halted playback are not played
+        self._playback_id += 1
+        self._event_queue.clear()
+
+    def _end_playback(self, report: MacroPlaybackReport) -> None:
+        self._playing = False
+        self.playback_ended.emit(report)
+
+    def _play_next_event(self, playback_id: int) -> None:
+        if playback_id != self._playback_id:
             return
 
         if not self._event_queue:
             # If the queue is empty, playback is complete.
             LOGGER.info("Macro playback completed.")
-            self.playback_ended.emit(MacroPlaybackReport(MacroPlaybackStatus.SUCCESS))
+            self._playback_id += 1
+            self._end_playback(MacroPlaybackReport(MacroPlaybackStatus.SUCCESS))
             return
 
         # Pop the next event from the queue
         macro_event = self._event_queue.pop(0)
 
         def on_event_finished() -> None:
+            # Events call this right before their action, which is skipped if
+            # the playback was stopped while the event was being prepared
+            if playback_id != self._playback_id:
+                raise _PlaybackStoppedError
             QTimer.singleShot(
                 self._wait_time(macro_event.ms_since_last_event),
-                self._play_next_event,
+                partial(self._play_next_event, playback_id),
             )
 
         try:
@@ -118,12 +153,22 @@ class MacroPlayer(QObject):
             macro_event.perform_event_action(on_event_finished)
             QgsApplication.processEvents()
 
+        except _PlaybackStoppedError:
+            LOGGER.debug("Skipped event of a stopped playback: %s", macro_event)
+
         except Exception as e:
+            if playback_id != self._playback_id:
+                LOGGER.exception("Event of a stopped playback failed.")
+                return
             # If an error occurs, halt playback and report failure.
-            self._playback_halted = True
+            self._halt()
             LOGGER.exception("Playing macro stopped due to exception.")
-            self.playback_ended.emit(
+            self._end_playback(
                 MacroPlaybackReport(
                     MacroPlaybackStatus.FAILURE, MacroPlaybackEndedError(e)
                 )
             )
+
+
+class _PlaybackStoppedError(Exception):
+    """Raised to skip the action of an event when its playback was stopped."""

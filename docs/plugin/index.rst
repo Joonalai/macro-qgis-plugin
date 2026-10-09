@@ -11,6 +11,7 @@ panel, adding a macro panel for recording and playing back macros.
    :maxdepth: 2
 
    plugin
+   processing_provider
    macro_panel
    macro_model
    workflow_model

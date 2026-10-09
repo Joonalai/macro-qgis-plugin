@@ -39,6 +39,10 @@ from qgis_macros.settings import Settings
 from qgis_plugin_tools.utils.typing_utils import require, require_type
 
 from macro_plugin.macro_storage import MacroStorage, WorkflowStorage
+from macro_plugin.processing_provider import (
+    MacroProcessingProvider,
+    MacroWorkflowProcessingProvider,
+)
 from macro_plugin.ui.macro_model import MacroTableModel
 from macro_plugin.ui.macro_panel import (
     MACRO_GROUP,
@@ -972,3 +976,188 @@ def test_load_invalid_file_adds_nothing(
         inspect.unwrap(macro_panel._load_macros_from_file)(macro_panel)
 
     assert macro_model.macros == []
+
+
+@pytest.fixture
+def macro_provider() -> MacroProcessingProvider:
+    return MacroProcessingProvider()
+
+
+@pytest.fixture
+def workflow_provider() -> MacroWorkflowProcessingProvider:
+    return MacroWorkflowProcessingProvider()
+
+
+@pytest.fixture
+def processing_panel(
+    mock_macro_recorder: "MagicMock",
+    mock_macro_player: "MagicMock",
+    macro_storage: MacroStorage,
+    macro_provider: MacroProcessingProvider,
+    workflow_provider: MacroWorkflowProcessingProvider,
+    qtbot: "QtBot",
+) -> Iterator[MacroPanel]:
+    mock_macro_recorder.stop_recording.side_effect = lambda: Macro(events=[])
+    macro_storage.save_macro(Macro(events=[], name="autosaved"))
+    panel = MacroPanel(
+        mock_macro_recorder,
+        mock_macro_player,
+        macro_storage,
+        macro_provider=macro_provider,
+        workflow_provider=workflow_provider,
+    )
+    qtbot.addWidget(panel)
+    panel.show()
+    yield panel
+    panel.table_view.setCurrentIndex(QModelIndex())
+    panel.tree_view_workflows.setCurrentIndex(QModelIndex())
+    panel.close()
+    QgsApplication.processEvents()
+
+
+def _algorithm_names(
+    provider: MacroProcessingProvider | MacroWorkflowProcessingProvider,
+) -> list[str]:
+    return [alg.displayName() for alg in provider.algorithms()]
+
+
+def test_macro_panel_keeps_macro_algorithms_in_sync(
+    processing_panel: MacroPanel,
+    macro_provider: MacroProcessingProvider,
+    workflow_provider: MacroWorkflowProcessingProvider,
+    qtbot: "QtBot",
+    subtests: "SubTests",
+) -> None:
+    model = cast("MacroTableModel", processing_panel.table_view.model())
+
+    with subtests.test("Loaded macros are registered"):
+        assert _algorithm_names(macro_provider) == ["autosaved"]
+        assert workflow_provider.algorithms() == []
+
+    with subtests.test("Recorded macro is registered"):
+        qtbot.mouseClick(processing_panel.button_record, Qt.MouseButton.LeftButton)
+        qtbot.mouseClick(processing_panel.button_record, Qt.MouseButton.LeftButton)
+        assert _algorithm_names(macro_provider) == ["autosaved", "macro_1"]
+
+    with subtests.test("Renamed macro changes the display name"):
+        assert model.setData(model.index(1, 0), "renamed")
+        assert _algorithm_names(macro_provider) == ["autosaved", "renamed"]
+        assert [alg.name() for alg in macro_provider.algorithms()] == [
+            macro.uid for macro in model.macros
+        ]
+
+    with subtests.test("Loaded file macros are registered"):
+        processing_panel._import_macro_file(
+            MacroFile([Macro(events=[], name="loaded")])
+        )
+        assert _algorithm_names(macro_provider) == ["autosaved", "renamed", "loaded"]
+
+    with subtests.test("Deleted macro is deregistered"):
+        processing_panel.tab_widget.setCurrentWidget(processing_panel.tab_macros)
+        processing_panel.table_view.selectRow(1)
+        qtbot.mouseClick(processing_panel.button_delete, Qt.MouseButton.LeftButton)
+        assert _algorithm_names(macro_provider) == ["autosaved", "loaded"]
+
+
+def test_macro_panel_keeps_workflow_algorithms_in_sync(
+    processing_panel: MacroPanel,
+    macro_provider: MacroProcessingProvider,
+    workflow_provider: MacroWorkflowProcessingProvider,
+    mocker: "MockerFixture",
+    qtbot: "QtBot",
+    subtests: "SubTests",
+) -> None:
+    model = cast("MacroWorkflowTreeModel", processing_panel.tree_view_workflows.model())
+    macro = cast("MacroTableModel", processing_panel.table_view.model()).macros[0]
+    set_workflows = mocker.spy(workflow_provider, "set_workflows")
+
+    with subtests.test("New workflow is registered"):
+        processing_panel._new_workflow([macro.uid])
+        # Close the name editor so that it is not committed later
+        processing_panel.tree_view_workflows.setCurrentIndex(QModelIndex())
+        assert _algorithm_names(workflow_provider) == ["workflow_1"]
+        assert workflow_provider.algorithms()[0].name() == model.workflows[0].uid
+
+    with subtests.test("Renamed workflow changes the display name"):
+        assert model.setData(model.index(0, 0), "renamed")
+        assert _algorithm_names(workflow_provider) == ["renamed"]
+
+    with subtests.test("Changing the steps does not re-register"):
+        set_workflows.reset_mock()
+        processing_panel._add_macros_to_workflow(model.workflows[0], [macro.uid])
+        processing_panel._move_selected_step(-1)
+        model.set_playing_step(model.workflows[0], 0)
+        model.set_playing_step(None)
+        assert set_workflows.call_count == 0
+        assert model.workflows[0].macro_uids == [macro.uid, macro.uid]
+
+    with subtests.test("Deleted macro updates the macros without re-registering"):
+        set_workflows.reset_mock()
+        set_macros_by_uid = mocker.spy(workflow_provider, "set_macros_by_uid")
+        processing_panel.tab_widget.setCurrentWidget(processing_panel.tab_macros)
+        processing_panel.table_view.selectRow(0)
+        qtbot.mouseClick(processing_panel.button_delete, Qt.MouseButton.LeftButton)
+        assert macro_provider.algorithms() == []
+        assert set_workflows.call_count == 0
+        assert set_macros_by_uid.call_args.args[0] == {}
+        assert _algorithm_names(workflow_provider) == ["renamed"]
+
+    with subtests.test("Deleted workflow is deregistered"):
+        _select_workflow_item(processing_panel, 0)
+        qtbot.mouseClick(
+            processing_panel.button_delete_workflow_item, Qt.MouseButton.LeftButton
+        )
+        assert workflow_provider.algorithms() == []
+
+
+def test_macro_tool_factory_passes_providers_to_the_panel(
+    mocker: "MockerFixture",
+    macro_provider: MacroProcessingProvider,
+    workflow_provider: MacroWorkflowProcessingProvider,
+    qtbot: "QtBot",
+) -> None:
+    mocker.patch.object(Settings.autosave_macros, "get", return_value=False)
+
+    panel = MacroToolFactory(macro_provider, workflow_provider).createWidget()
+    qtbot.addWidget(panel)
+    cast("MacroTableModel", panel.table_view.model()).add_macro(
+        Macro(events=[], name="new")
+    )
+
+    assert _algorithm_names(macro_provider) == ["new"]
+
+
+def test_macro_panel_ignores_macro_changes_that_algorithms_do_not_show(
+    processing_panel: MacroPanel,
+    macro_provider: MacroProcessingProvider,
+    workflow_provider: MacroWorkflowProcessingProvider,
+    mocker: "MockerFixture",
+) -> None:
+    model = cast("MacroTableModel", processing_panel.table_view.model())
+    set_macros = mocker.spy(macro_provider, "set_macros")
+    set_workflows = mocker.spy(workflow_provider, "set_workflows")
+    index = model.index(0, 0)
+
+    model.dataChanged.emit(index, index, [Qt.ItemDataRole.ToolTipRole])
+    assert set_macros.call_count == 0
+
+    assert model.setData(index, "renamed")
+    assert set_macros.call_count == 1
+    assert set_workflows.call_count == 0
+
+
+def test_macro_panel_does_not_sync_deleted_providers(
+    processing_panel: MacroPanel,
+    macro_provider: MacroProcessingProvider,
+    workflow_provider: MacroWorkflowProcessingProvider,
+    qgis_processing: None,
+) -> None:
+    model = cast("MacroTableModel", processing_panel.table_view.model())
+    registry = require(QgsApplication.processingRegistry())
+    # The registry deletes the providers, e.g. when the plugin is unloaded
+    for provider in (macro_provider, workflow_provider):
+        assert registry.addProvider(provider)
+        registry.removeProvider(provider)
+
+    model.add_macro(Macro(events=[], name="after unload"))
+    processing_panel._new_workflow()

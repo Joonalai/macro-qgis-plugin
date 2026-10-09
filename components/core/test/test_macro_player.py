@@ -16,7 +16,8 @@
 #  You should have received a copy of the GNU General Public License
 #  along with macro-qgis-plugin. If not, see <https://www.gnu.org/licenses/>.
 
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 import pytest
@@ -25,7 +26,13 @@ from macro_test_utils.utils import WidgetEventListener, WidgetInfo
 from qgis.core import Qgis, QgsFeature
 from qgis.gui import QgsMapToolDigitizeFeature
 from qgis.PyQt.QtCore import QPoint, QRect, QSize, Qt, QTimer
-from qgis.PyQt.QtWidgets import QApplication, QDialog, QMenu
+from qgis.PyQt.QtWidgets import (
+    QApplication,
+    QDialog,
+    QLineEdit,
+    QMenu,
+    QVBoxLayout,
+)
 from qgis_macros import widget_lookup
 from qgis_macros.exceptions import MacroPlaybackEndedError
 from qgis_macros.macro import (
@@ -56,6 +63,7 @@ if TYPE_CHECKING:
     from pytestqt.qtbot import QtBot
     from qgis.gui import QgsMapCanvas
     from qgis.PyQt.QtGui import QAction
+    from qgis.PyQt.QtWidgets import QWidget
 
 pytest_plugins = [
     "macro_test_utils.macro_fixture",
@@ -140,6 +148,102 @@ def test_macro_player_should_click_check_button(
     ):
         macro_player.play(check_box_click_macro)
     assert dialog.check_box.isChecked()
+
+
+def test_macro_player_stop_should_end_playback_without_playing_remaining_events(
+    button_click_macro: Macro,
+    macro_player: MacroPlayer,
+    dialog: "Dialog",
+    qtbot: "QtBot",
+):
+    assert not macro_player.is_playing()
+
+    with (
+        qtbot.assertNotEmitted(dialog.button.clicked, wait=100),
+        qtbot.waitSignal(macro_player.playback_ended, timeout=TIMEOUT) as blocker,
+    ):
+        macro_player.play(button_click_macro)
+        assert macro_player.is_playing()
+        macro_player.stop()
+
+    assert blocker.args[0].status == MacroPlaybackStatus.STOPPED
+    assert not macro_player.is_playing()
+
+
+@dataclass
+class _RecordingEvent:
+    """Event that records its action, optionally running *before* first."""
+
+    name: str
+    actions: list[str]
+    ms_since_last_event: int = 0
+    before: Callable[[], None] | None = None
+
+    def perform_event_action(self, schedule_next: Callable[[], None]) -> None:
+        if self.before is not None:
+            self.before()
+        schedule_next()
+        self.actions.append(self.name)
+
+
+def test_macro_player_should_not_play_events_scheduled_before_stop(
+    macro_player: MacroPlayer,
+    qtbot: "QtBot",
+):
+    actions: list[str] = []
+    first = Macro(
+        events=[_RecordingEvent("a1", actions), _RecordingEvent("a2", actions)]
+    )
+    second = Macro(
+        events=[
+            # The player waits the delay of the played event before the next
+            _RecordingEvent("b1", actions, ms_since_last_event=300),
+            _RecordingEvent("b2", actions),
+        ]
+    )
+
+    # Waits past the STOPPED report of the first playback
+    with qtbot.waitSignal(
+        macro_player.playback_ended,
+        timeout=TIMEOUT,
+        check_params_cb=lambda report: report.status == MacroPlaybackStatus.SUCCESS,
+    ):
+        macro_player.play(first)
+        macro_player.stop()
+        macro_player.play(second)
+        # The event scheduled by the stopped playback would play b2 now
+        qtbot.wait(100)
+        assert actions == ["a1", "b1"]
+
+    assert actions == ["a1", "b1", "b2"]
+
+
+def test_macro_player_should_skip_action_of_event_when_stopped_during_it(
+    macro_player: MacroPlayer,
+    qtbot: "QtBot",
+):
+    actions: list[str] = []
+    macro = Macro(
+        events=[
+            _RecordingEvent("first", actions),
+            _RecordingEvent("second", actions, before=macro_player.stop),
+        ]
+    )
+
+    with qtbot.waitSignal(macro_player.playback_ended, timeout=TIMEOUT) as blocker:
+        macro_player.play(macro)
+
+    assert blocker.args[0].status == MacroPlaybackStatus.STOPPED
+    qtbot.wait(50)
+    assert actions == ["first"]
+
+
+def test_macro_player_stop_should_do_nothing_if_not_playing(
+    macro_player: MacroPlayer,
+    qtbot: "QtBot",
+):
+    with qtbot.assertNotEmitted(macro_player.playback_ended):
+        macro_player.stop()
 
 
 def test_macro_player_should_raise_if_widget_not_found(
@@ -331,6 +435,82 @@ def test_macro_player_play_line_edit_macro_with_text(
     ):
         macro_player.play(macro)
     assert dialog.line_edit.text() == text
+
+
+@pytest.mark.parametrize("modal", [False, True], ids=["active_window", "modal_window"])
+def test_macro_player_should_type_into_recorded_widget_when_other_window_is_active(
+    macro_player: MacroPlayer,
+    dialog: "Dialog",
+    qgis_parent: "QWidget",
+    qtbot: "QtBot",
+    modal: bool,
+):
+    # Arrange
+    dialog.setWindowTitle("Macro dialog")
+    other_window = QDialog(qgis_parent)
+    other_window.setWindowTitle("Other window")
+    if modal:
+        other_window.setWindowModality(Qt.WindowModality.ApplicationModal)
+    other_line_edit = QLineEdit(other_window)
+    QVBoxLayout(other_window).addWidget(other_line_edit)
+    other_window.move(dialog.x() + dialog.width() + 100, dialog.y())
+    qtbot.addWidget(other_window)
+    other_window.show()
+    qtbot.waitExposed(other_window)
+    other_window.activateWindow()
+    other_line_edit.setFocus()
+    qtbot.waitUntil(lambda: QApplication.focusWidget() is other_line_edit)
+    line_edit = WidgetInfo.from_widget("line_edit", dialog.line_edit)
+    macro = Macro(
+        events=[
+            macro_utils.mouse_move_macro_event(line_edit),
+            *macro_utils.widget_clicking_macro_events(line_edit),
+            *macro_utils.key_macro_events(
+                line_edit, enum_value(Qt.Key.Key_A), text="a"
+            ),
+        ]
+    )
+
+    # Act
+    with qtbot.waitSignal(macro_player.playback_ended, timeout=TIMEOUT):
+        macro_player.play(macro)
+
+    # Assert
+    assert dialog.line_edit.text() == "a"
+    assert other_line_edit.text() == ""
+
+
+@pytest.mark.parametrize("state", ["hidden", "disabled"])
+def test_macro_player_should_type_into_focused_widget_if_recorded_is_unusable(
+    macro_player: MacroPlayer,
+    dialog: "Dialog",
+    qtbot: "QtBot",
+    state: str,
+):
+    # Arrange
+    recorded = WidgetInfo.from_widget("line_edit", dialog.line_edit)
+    other_line_edit = QLineEdit(dialog)
+    other_line_edit.setObjectName("other_line_edit")
+    require(dialog.layout()).addWidget(other_line_edit)
+    other_line_edit.setFocus()
+    qtbot.waitUntil(lambda: QApplication.focusWidget() is other_line_edit)
+    if state == "hidden":
+        dialog.line_edit.hide()
+    else:
+        dialog.line_edit.setEnabled(False)
+    macro = Macro(
+        events=macro_utils.key_macro_events(
+            recorded, enum_value(Qt.Key.Key_A), text="a"
+        )
+    )
+
+    # Act
+    with qtbot.waitSignal(macro_player.playback_ended, timeout=TIMEOUT):
+        macro_player.play(macro)
+
+    # Assert
+    assert dialog.line_edit.text() == ""
+    assert other_line_edit.text() == "a"
 
 
 def test_macro_player_play_mouse_move_with_button_held(

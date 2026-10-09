@@ -19,13 +19,25 @@
 from typing import TYPE_CHECKING
 
 import pytest
+from qgis.core import QgsApplication
 from qgis.PyQt.QtCore import QObject, pyqtSignal
+from qgis_macros.macro import Macro
+from qgis_macros.macro_workflow import MacroWorkflow
+from qgis_macros.settings import Settings
+from qgis_plugin_tools.utils.typing_utils import require
 
 from macro_plugin import env
 from macro_plugin import plugin as plugin_module
+from macro_plugin.macro_storage import MacroStorage, WorkflowStorage
 from macro_plugin.plugin import MacroPlugin
+from macro_plugin.processing_provider import (
+    MACRO_PROVIDER_ID,
+    WORKFLOW_PROVIDER_ID,
+)
+from macro_plugin.ui import macro_panel as macro_panel_module
 
 if TYPE_CHECKING:
+    from pathlib import Path
     from unittest.mock import MagicMock
 
     from pytest_mock import MockerFixture
@@ -97,4 +109,80 @@ def test_macro_panel_is_registered_immediately_in_development_mode(
 
     # Assert
     mock_iface.registerDevToolWidgetFactory.assert_called_once()
+    plugin.unload()
+
+
+@pytest.fixture
+def storage(mocker: "MockerFixture", tmp_path: "Path") -> MacroStorage:
+    """Autosave storage in a temporary directory, used by the plugin and panel."""
+    mocker.patch.object(Settings.autosave_macros, "get", return_value=True)
+    storage = MacroStorage(tmp_path / "autosave")
+    workflow_directory = tmp_path / "workflows"
+    for module in (plugin_module, macro_panel_module):
+        mocker.patch.object(
+            module, "default_autosave_directory", return_value=storage.directory
+        )
+        mocker.patch.object(
+            module, "default_workflow_directory", return_value=workflow_directory
+        )
+    return storage
+
+
+def test_processing_providers_are_registered_between_init_and_unload(
+    mock_iface: "MagicMock",
+    storage: MacroStorage,
+) -> None:
+    registry = require(QgsApplication.processingRegistry())
+    plugin = MacroPlugin()
+
+    plugin.initGui()
+
+    assert registry.providerById(MACRO_PROVIDER_ID) is plugin._macro_provider
+    assert registry.providerById(WORKFLOW_PROVIDER_ID) is plugin._workflow_provider
+
+    plugin.unload()
+
+    assert registry.providerById(MACRO_PROVIDER_ID) is None
+    assert registry.providerById(WORKFLOW_PROVIDER_ID) is None
+
+
+def test_processing_providers_load_autosaved_macros_without_the_panel(
+    mock_iface: "MagicMock",
+    storage: MacroStorage,
+    tmp_path: "Path",
+) -> None:
+    macro = Macro(events=[], name="autosaved")
+    storage.save_macro(macro)
+    workflow = MacroWorkflow("stored workflow", [macro.uid])
+    WorkflowStorage(tmp_path / "workflows").save_workflow(workflow)
+    plugin = MacroPlugin()
+
+    plugin.initGui()
+
+    mock_iface.registerDevToolWidgetFactory.assert_not_called()
+    assert [alg.name() for alg in plugin._macro_provider.algorithms()] == [macro.uid]
+    workflow_algorithms = plugin._workflow_provider.algorithms()
+    assert [alg.displayName() for alg in workflow_algorithms] == ["stored workflow"]
+    assert "autosaved" in workflow_algorithms[0].shortHelpString()
+    plugin.unload()
+
+
+def test_macro_panel_registers_loaded_macros_as_algorithms(
+    mock_iface: "MagicMock",
+    iface_signals: StubIfaceSignals,
+    storage: MacroStorage,
+) -> None:
+    plugin = MacroPlugin()
+    plugin.initGui()
+    # Saved after the providers loaded the autosaved macros
+    storage.save_macro(Macro(events=[], name="autosaved"))
+    # The dev tools dock creates the panel when the factory is registered
+    mock_iface.registerDevToolWidgetFactory.side_effect = lambda factory: (
+        factory.createWidget()
+    )
+
+    iface_signals.initializationCompleted.emit()
+
+    algorithms = plugin._macro_provider.algorithms()
+    assert [alg.displayName() for alg in algorithms] == ["autosaved"]
     plugin.unload()

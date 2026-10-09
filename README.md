@@ -18,6 +18,7 @@ that allows users to record and playback simple macros.
 * Record and playback macros (mouse and keyboard events)
 * Combine macros into macro workflows that play them in sequence
 * Save macros and macro workflows to disk for later usage
+* Run macros and macro workflows as processing algorithms, for example as model steps
 * Optionally profile macros
 
 ## Installation
@@ -63,6 +64,20 @@ Selected macros can be exported from the context menu of the **All macros** tab.
 
 Use the **Open** button to load previously saved macros and workflows from disk.
 Macros and workflows that are already in the panel are not loaded again.
+
+### Running Macros from Processing
+
+Every macro and macro workflow is also available as a parameterless
+processing algorithm. The algorithms are listed under the **Macros** and
+**Macro workflows** providers of the Processing toolbox, and they can be used
+as steps of graphical models. The algorithms are added and removed as macros
+and workflows are recorded, loaded, renamed and deleted. The algorithm id is
+based on the uid of the macro, so renaming a macro does not break models that
+use it.
+
+Because the steps have no parameters, model steps are not automatically run
+in a fixed order. Set the **Dependencies** of the model steps to run the macros
+one after another, or use a macro workflow as a single step.
 
 ### Using the Core Library
 
