@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Updated from qgis-plugin-copier-template v0.8.1 and switched type checking to ty
+- Fixed recording wheel events on Qt 6
 
 ## 1.0.1 - 2026-10-04
 

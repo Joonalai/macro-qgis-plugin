@@ -204,6 +204,7 @@ def install_stubs() -> None:
             ),
             "QEventLoop": _Stub,
             "QElapsedTimer": _Stub,
+            "QMimeData": _Stub,
             "QModelIndex": _Stub,
             "QPoint": _Stub,
             "QPointF": _Stub,
@@ -301,5 +302,13 @@ def install_stubs() -> None:
         "qgis_plugin_tools.tools.decorations",
         {
             "log_if_fails": lambda *args, **kwargs: lambda fn: fn,
+        },
+    )
+    _make_module("qgis_plugin_tools.utils")
+    _make_module(
+        "qgis_plugin_tools.utils.typing_utils",
+        {
+            "require": lambda value, msg="": value,
+            "require_type": lambda value, cls, msg=None: value,
         },
     )

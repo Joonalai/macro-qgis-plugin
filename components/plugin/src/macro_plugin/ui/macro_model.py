@@ -19,7 +19,7 @@
 
 import json
 from collections.abc import Iterable
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from qgis.PyQt.QtCore import (
     NULL,
@@ -89,19 +89,20 @@ class MacroTableModel(QAbstractTableModel):
         self.macros = macros
         self.endResetModel()
 
-    def rowCount(self, parent: QModelIndex) -> int:  # noqa: N802, D102
-        valid = parent.isValid()
-        return 0 if valid else len(self.macros)
+    def rowCount(self, parent: QModelIndex | None = None) -> int:  # noqa: N802, D102
+        parent = parent or QModelIndex()
+        return 0 if parent.isValid() else len(self.macros)
 
-    def columnCount(self, parent: QModelIndex) -> int:  # noqa: N802, D102
+    def columnCount(self, parent: QModelIndex | None = None) -> int:  # noqa: N802, D102
+        parent = parent or QModelIndex()
         return 0 if parent.isValid() else len(self.headers)
 
     def headerData(  # noqa: N802, D102
         self,
         section: int,
         orientation: Qt.Orientation,
-        role: Qt.ItemDataRole = Qt.ItemDataRole.DisplayRole,
-    ) -> QVariant:
+        role: int = Qt.ItemDataRole.DisplayRole,
+    ) -> Any:
         if (
             role == Qt.ItemDataRole.DisplayRole
             and orientation == Qt.Orientation.Horizontal
@@ -114,8 +115,11 @@ class MacroTableModel(QAbstractTableModel):
             return Qt.AlignmentFlag.AlignLeft
         return NULL
 
-    def flags(self, index: QModelIndex) -> Qt.ItemFlag:
-        """Return the flags for the given index."""
+    def flags(self, index: QModelIndex) -> Any:
+        """Return the flags for the given index.
+
+        The return type is Qt.ItemFlags on PyQt5 and Qt.ItemFlag on PyQt6.
+        """
         default_flags = super().flags(index)
         if index.isValid():
             return (
@@ -125,7 +129,7 @@ class MacroTableModel(QAbstractTableModel):
             )
         return default_flags
 
-    def supportedDragActions(self) -> Qt.DropAction:  # noqa: N802, D102
+    def supportedDragActions(self) -> Any:  # noqa: N802, D102
         return Qt.DropAction.CopyAction
 
     def mimeTypes(self) -> list[str]:  # noqa: N802, D102
@@ -139,9 +143,7 @@ class MacroTableModel(QAbstractTableModel):
         mime_data.setData(MACRO_UIDS_MIME_TYPE, json.dumps(uids).encode("utf-8"))
         return mime_data
 
-    def data(
-        self, index: QModelIndex, role: Qt.ItemDataRole = Qt.ItemDataRole.DisplayRole
-    ) -> QVariant:
+    def data(self, index: QModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> Any:
         """Return the data for the given index and role."""
         row = index.row()
         if not index.isValid():
@@ -160,11 +162,15 @@ class MacroTableModel(QAbstractTableModel):
     def setData(  # noqa: N802
         self,
         index: QModelIndex,
-        value: str,
-        role: Qt.ItemDataRole = Qt.ItemDataRole.EditRole,
+        value: Any,
+        role: int = Qt.ItemDataRole.EditRole,
     ) -> bool:
         """Set the data for the given index and role."""
-        if not index.isValid() or role != Qt.ItemDataRole.EditRole:
+        if (
+            not index.isValid()
+            or role != Qt.ItemDataRole.EditRole
+            or not isinstance(value, str)
+        ):
             return False
         row = index.row()
         name = value.strip()

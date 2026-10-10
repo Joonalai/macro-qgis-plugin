@@ -161,7 +161,7 @@ exclude_dirs = [
 ]
 
 [tool.ty.environment]
-python-version = "3.12"
+python-version = "3.13"
 
 [tool.ty.rules]
 possibly-unresolved-reference = "warn"

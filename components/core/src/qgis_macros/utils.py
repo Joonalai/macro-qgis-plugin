@@ -19,15 +19,18 @@
 """Utility functions for widget lookup, event position handling, and Qt compat."""
 
 from collections.abc import Iterator
+from enum import Enum
 from typing import (
     TYPE_CHECKING,
+    SupportsInt,
     cast,
 )
 
-from qgis.PyQt.QtCore import QObject, QPoint
+from qgis.PyQt.QtCore import QObject, QPoint, Qt
 from qgis.PyQt.QtGui import QMouseEvent, QWheelEvent
 from qgis.PyQt.QtWidgets import QAbstractButton, QApplication, QMenu, QWidget
 from qgis.utils import iface as iface_
+from qgis_plugin_tools.utils.typing_utils import require
 
 from qgis_macros.constants import MAXIMUM_PARENT_DEPTH
 
@@ -40,7 +43,8 @@ iface = cast("QgisInterface", iface_)
 
 def is_object_map_canvas(obj: QObject) -> bool:
     """Return True if *obj* is the map canvas viewport widget."""
-    return obj == iface.mapCanvas().viewport()
+    canvas = iface.mapCanvas()
+    return canvas is not None and obj == canvas.viewport()
 
 
 def get_widget_text(widget: QWidget) -> str:
@@ -100,25 +104,41 @@ def find_nearest_visible_children_with_threshold(
     return (child[0] for child in sorted(nearest_visible_children, key=lambda x: x[1]))
 
 
-def enum_value(enum_or_flag: object) -> int:
+def enum_value(enum_or_flag: SupportsInt | Enum) -> int:
     """Convert a Qt enum/flag to int, compatible with both PyQt5 and PyQt6."""
-    if hasattr(enum_or_flag, "value"):
-        return enum_or_flag.value  # type: ignore[union-attr]
-    return int(enum_or_flag)  # type: ignore[arg-type,call-overload]
+    if isinstance(enum_or_flag, Enum):
+        return enum_or_flag.value
+    return int(enum_or_flag)
+
+
+def keyboard_modifiers(modifiers: int) -> Qt.KeyboardModifier:
+    """Convert an int to Qt keyboard modifier flags (PyQt5/6 compatible)."""
+    # PyQt5 has a separate class for combined flags
+    flags_class = getattr(Qt, "KeyboardModifiers", Qt.KeyboardModifier)
+    return flags_class(modifiers)
+
+
+def mouse_buttons(buttons: int) -> Qt.MouseButton:
+    """Convert an int to Qt mouse button flags (PyQt5/6 compatible)."""
+    flags_class = getattr(Qt, "MouseButtons", Qt.MouseButton)
+    return flags_class(buttons)
 
 
 def event_pos(event: QMouseEvent | QWheelEvent) -> QPoint:
     """Get local position from a mouse/wheel event (PyQt5/6 compatible)."""
-    if hasattr(event, "position"):
-        return event.position().toPoint()
-    return event.pos()
+    # Wheel events have position() on PyQt6 and pos() on PyQt5
+    position = getattr(event, "position", None)
+    if position is not None:
+        return position().toPoint()
+    return require(getattr(event, "pos", None))()
 
 
 def event_global_pos(event: QMouseEvent | QWheelEvent) -> QPoint:
     """Get global position from a mouse/wheel event (PyQt5/6 compatible)."""
-    if hasattr(event, "globalPosition"):
-        return event.globalPosition().toPoint()
-    return event.globalPos()
+    global_position = getattr(event, "globalPosition", None)
+    if global_position is not None:
+        return global_position().toPoint()
+    return require(getattr(event, "globalPos", None))()
 
 
 def menu_item_text(action: "QAction") -> str:
@@ -135,7 +155,7 @@ def visible_menus() -> list[QMenu]:
         if isinstance(widget, QMenu) and widget.isVisible()
     ]
     active_popup = QApplication.activePopupWidget()
-    if active_popup in menus:
+    if isinstance(active_popup, QMenu) and active_popup in menus:
         menus.remove(active_popup)
         menus.insert(0, active_popup)
     return menus

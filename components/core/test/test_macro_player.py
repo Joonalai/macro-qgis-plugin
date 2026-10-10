@@ -17,12 +17,12 @@
 #  along with macro-qgis-plugin. If not, see <https://www.gnu.org/licenses/>.
 
 from collections.abc import Iterator
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import pytest
 from macro_test_utils import macro_utils
 from macro_test_utils.utils import WidgetEventListener, WidgetInfo
-from qgis.core import QgsFeature, QgsWkbTypes
+from qgis.core import Qgis, QgsFeature
 from qgis.gui import QgsMapToolDigitizeFeature
 from qgis.PyQt.QtCore import QPoint, Qt, QTimer
 from qgis.PyQt.QtWidgets import QMenu
@@ -41,6 +41,7 @@ from qgis_macros.macro_player import (
     MacroPlayer,
 )
 from qgis_macros.utils import enum_value
+from qgis_plugin_tools.utils.typing_utils import require
 
 TIMEOUT = 1000
 
@@ -62,7 +63,8 @@ def _check_successfull(playback_report: MacroPlaybackReport):
     return True
 
 
-checkers = [_check_successfull, None]
+# pytest-qt accepts None as a callback, which its type hints do not allow
+checkers: list[Any] = [_check_successfull, None]
 
 
 @pytest.fixture
@@ -210,7 +212,7 @@ def test_macro_player_right_click_should_request_context_menu(
 
     with qtbot.waitSignals(
         [macro_player.playback_ended, dialog.button.customContextMenuRequested],
-        check_params_cbs=[_check_successfull, None],
+        check_params_cbs=checkers,
         timeout=TIMEOUT,
     ):
         macro_player.play(macro)
@@ -414,7 +416,7 @@ def test_macro_player_should_play_digitizing_polygon(
     # Assert
     assert len(features) == 1
     assert features[0].isValid()
-    assert features[0].geometry().wkbType() == QgsWkbTypes.Type.Polygon
+    assert features[0].geometry().wkbType() == Qgis.WkbType.Polygon
 
 
 @pytest.fixture
@@ -422,9 +424,9 @@ def styles_menu(dialog: "Dialog") -> "Iterator[tuple[QMenu, QAction]]":
     menu = QMenu(dialog)
     menu.addAction("Zoom to Layer")
     menu.addSeparator()
-    styles = menu.addMenu("&Styles")
+    styles = require(menu.addMenu("&Styles"))
     styles.addAction("slow")
-    fast = styles.addAction("fast")
+    fast = require(styles.addAction("fast"))
     yield menu, fast
     menu.close()
 
@@ -449,7 +451,7 @@ def test_macro_player_should_activate_submenu_item(
 
     with qtbot.waitSignals(
         [macro_player.playback_ended, fast.triggered],
-        check_params_cbs=[_check_successfull, None],
+        check_params_cbs=checkers,
         timeout=TIMEOUT,
     ):
         macro_player.play(_menu_action_macro("Styles", "fast"))
@@ -499,7 +501,7 @@ def test_macro_player_should_activate_context_menu_item(
 
     with qtbot.waitSignals(
         [macro_player.playback_ended, fast.triggered],
-        check_params_cbs=[_check_successfull, None],
+        check_params_cbs=checkers,
         timeout=TIMEOUT,
     ):
         macro_player.play(macro)

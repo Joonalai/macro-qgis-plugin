@@ -53,6 +53,7 @@ from qgis_plugin_tools.tools.decorations import log_if_fails
 from qgis_plugin_tools.tools.i18n import tr
 from qgis_plugin_tools.tools.messages import MsgBar
 from qgis_plugin_tools.tools.resources import load_ui_from_file, resources_path
+from qgis_plugin_tools.utils.typing_utils import require
 
 from macro_plugin.macro_storage import (
     MacroStorage,
@@ -157,11 +158,13 @@ class MacroPanel(UI_CLASS, QgsDevToolWidget):  # type: ignore
 
     def _configure_table(self) -> None:
         """Set up the table view with appropriate settings."""
-        self.table_view.horizontalHeader().setSectionResizeMode(
+        require(self.table_view.horizontalHeader()).setSectionResizeMode(
             QHeaderView.ResizeMode.Stretch
         )
         self.table_view.setModel(self._model)
-        self.table_view.selectionModel().selectionChanged.connect(self._update_ui_state)
+        require(self.table_view.selectionModel()).selectionChanged.connect(
+            self._update_ui_state
+        )
         self.table_view.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.table_view.customContextMenuRequested.connect(
             self._show_macro_context_menu
@@ -171,7 +174,7 @@ class MacroPanel(UI_CLASS, QgsDevToolWidget):  # type: ignore
         """Set up the workflow tree view and the tabs."""
         self.tree_view_workflows.setModel(self._workflow_model)
         self.tree_view_workflows.expandAll()
-        self.tree_view_workflows.selectionModel().selectionChanged.connect(
+        require(self.tree_view_workflows.selectionModel()).selectionChanged.connect(
             self._update_ui_state
         )
         self.tree_view_workflows.setContextMenuPolicy(
@@ -189,7 +192,7 @@ class MacroPanel(UI_CLASS, QgsDevToolWidget):  # type: ignore
         self._workflow_model.rowsInserted.connect(self._workflow_rows_inserted)
 
         # Switch to the workflows tab when macros are dragged over it
-        tab_bar = self.tab_widget.tabBar()
+        tab_bar = require(self.tab_widget.tabBar())
         tab_bar.setChangeCurrentOnDrag(True)
         tab_bar.setAcceptDrops(True)
 
@@ -270,7 +273,7 @@ class MacroPanel(UI_CLASS, QgsDevToolWidget):  # type: ignore
 
     def _selected_workflow_index(self) -> QModelIndex:
         """Return the selected workflow or step index of the tree."""
-        indexes = self.tree_view_workflows.selectionModel().selectedIndexes()
+        indexes = require(self.tree_view_workflows.selectionModel()).selectedIndexes()
         return indexes[0] if indexes else QModelIndex()
 
     @staticmethod
@@ -360,7 +363,7 @@ class MacroPanel(UI_CLASS, QgsDevToolWidget):  # type: ignore
     def _play_next_macro(self) -> None:
         macro, self._played_step = self._play_queue.pop(0)
         if Settings.profile_macros.get():
-            QgsApplication.profiler().start(
+            require(QgsApplication.profiler()).start(
                 f"Macro: {macro.name}", Settings.profile_macro_group.get()
             )
 
@@ -380,7 +383,7 @@ class MacroPanel(UI_CLASS, QgsDevToolWidget):  # type: ignore
     @log_if_fails
     def _macro_playback_ended(self, macro_report: MacroPlaybackReport) -> None:
         if Settings.profile_macros.get():
-            QgsApplication.profiler().end(Settings.profile_macro_group.get())
+            require(QgsApplication.profiler()).end(Settings.profile_macro_group.get())
         workflow = self._played_workflow
         step = self._played_step
         if macro_report.status == MacroPlaybackStatus.FAILURE:
@@ -484,7 +487,7 @@ class MacroPanel(UI_CLASS, QgsDevToolWidget):  # type: ignore
         icon: str | None = None,
     ) -> None:
         """Add an action to *menu* that calls *callback* without arguments."""
-        action = (
+        action = require(
             menu.addAction(QgsApplication.getThemeIcon(icon), text)
             if icon
             else menu.addAction(text)
@@ -495,7 +498,7 @@ class MacroPanel(UI_CLASS, QgsDevToolWidget):  # type: ignore
     def _add_macro_actions(self, menu: QMenu) -> None:
         """Add an action for each macro that adds it to the selected workflow."""
         if not self._model.macros:
-            menu.addAction(tr("No macros recorded")).setEnabled(False)
+            require(menu.addAction(tr("No macros recorded"))).setEnabled(False)
         for macro in self._model.macros:
             self._add_action(
                 menu,
@@ -511,8 +514,10 @@ class MacroPanel(UI_CLASS, QgsDevToolWidget):  # type: ignore
         macro_uids = [self._model.macros[row].uid for row in rows]
 
         menu = QMenu(self)
-        add_menu = menu.addMenu(
-            QgsApplication.getThemeIcon("/symbologyAdd.svg"), tr("Add to workflow")
+        add_menu = require(
+            menu.addMenu(
+                QgsApplication.getThemeIcon("/symbologyAdd.svg"), tr("Add to workflow")
+            )
         )
         for workflow in self._workflow_model.workflows:
             self._add_action(
@@ -562,8 +567,10 @@ class MacroPanel(UI_CLASS, QgsDevToolWidget):  # type: ignore
             )
         menu.addSeparator()
         self._add_macro_actions(
-            menu.addMenu(
-                QgsApplication.getThemeIcon("/symbologyAdd.svg"), tr("Add macro")
+            require(
+                menu.addMenu(
+                    QgsApplication.getThemeIcon("/symbologyAdd.svg"), tr("Add macro")
+                )
             )
         )
         if is_step:
@@ -604,14 +611,14 @@ class MacroPanel(UI_CLASS, QgsDevToolWidget):  # type: ignore
     def _show_macro_context_menu(self, position: QPoint) -> None:
         menu = self._create_macro_context_menu()
         if menu is not None:
-            menu.exec(self.table_view.viewport().mapToGlobal(position))
+            menu.exec(require(self.table_view.viewport()).mapToGlobal(position))
 
     def _show_workflow_context_menu(self, position: QPoint) -> None:
         index = self.tree_view_workflows.indexAt(position)
         # The menu actions work on the clicked item, so select it to show that
         self.tree_view_workflows.setCurrentIndex(index)
         menu = self._create_workflow_context_menu(index)
-        menu.exec(self.tree_view_workflows.viewport().mapToGlobal(position))
+        menu.exec(require(self.tree_view_workflows.viewport()).mapToGlobal(position))
 
     def _delete_macros(self) -> None:
         if not self._validate_macro_selection():

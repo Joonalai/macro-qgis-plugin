@@ -39,7 +39,7 @@ import uuid
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Any, ClassVar, Protocol
 
 from qgis.core import Qgis, QgsApplication, QgsLineString
 from qgis.PyQt.QtCore import QEvent, QPoint, QPointF, Qt
@@ -53,6 +53,7 @@ from qgis.PyQt.QtGui import (
 )
 from qgis.PyQt.QtTest import QTest
 from qgis.PyQt.QtWidgets import QApplication, QMenu, QWidget
+from qgis_plugin_tools.utils.typing_utils import require
 
 from qgis_macros import utils
 from qgis_macros.constants import (
@@ -67,6 +68,10 @@ if TYPE_CHECKING:
     from qgis.PyQt.QtGui import QAction
 
 LOGGER = logging.getLogger(__name__)
+
+# The PyQt6 stubs declare the static QTest methods as instance methods,
+# which makes the widget argument look like a wrong self argument
+_qtest: Any = QTest
 
 
 @dataclass
@@ -108,7 +113,10 @@ class WidgetSpec:
                 return candidate
             if i > MAXIMUM_NEAREST_CANDIDATES:
                 break
-        if level < MAXIMUM_PARENT_DEPTH and (parent := widget.parent()) is not None:
+        if (
+            level < MAXIMUM_PARENT_DEPTH
+            and (parent := widget.parentWidget()) is not None
+        ):
             return self.get_suitable_widget(point, parent, level + 1)
         raise WidgetNotFoundError(self.widget_class, self.text)
 
@@ -218,6 +226,8 @@ class WidgetPath:
 class MacroEvent(Protocol):
     """Single macro event for Macros."""
 
+    # Events are dataclasses so that they can be serialized
+    __dataclass_fields__: ClassVar[dict[str, dataclasses.Field[Any]]]
     ms_since_last_event: int
 
     def perform_event_action(self, schedule_next: Callable[[], None]) -> None:
@@ -263,7 +273,7 @@ class Position:
             line = QgsLineString(x, y)
             distance = line.length() / (number_of_positions - 1)
             interpolated_points = [
-                line.interpolatePoint(point_distance)
+                require(line.interpolatePoint(point_distance))
                 for point_distance in [
                     distance * i for i in range(1, number_of_positions - 1)
                 ]
@@ -346,7 +356,12 @@ class BaseMacroEvent(ABC):  # noqa: PLW1641
             )
         if not self.widget_spec.matches(widget):
             # Sometimes dialogs might appear in a slightly different position
-            widget = self.widget_spec.get_suitable_widget(global_point, widget.parent())
+            parent = widget.parentWidget()
+            if parent is None:
+                raise WidgetNotFoundError(
+                    self.widget_spec.widget_class, self.widget_spec.text
+                )
+            widget = self.widget_spec.get_suitable_widget(global_point, parent)
         widget.setFocus()
         return widget
 
@@ -385,13 +400,13 @@ class MacroKeyEvent(BaseMacroEvent):  # noqa: PLW1641
         QgsApplication.processEvents()
         schedule_next()
         key = Qt.Key(self.key)
-        modifiers = Qt.KeyboardModifiers(self.modifiers)
+        modifiers = utils.keyboard_modifiers(self.modifiers)
         if self._needs_recorded_text():
             self._send_key_event_with_text(widget, key, modifiers)
         elif not self.is_release:
-            QTest.keyPress(widget, key, modifiers)
+            _qtest.keyPress(widget, key, modifiers)
         else:
-            QTest.keyRelease(widget, key, modifiers)
+            _qtest.keyRelease(widget, key, modifiers)
 
     def _needs_recorded_text(self) -> bool:
         """Check if the recorded text differs from the text QTest would use.
@@ -406,7 +421,7 @@ class MacroKeyEvent(BaseMacroEvent):  # noqa: PLW1641
         return self.text != derived_text
 
     def _send_key_event_with_text(
-        self, widget: QWidget, key: Qt.Key, modifiers: Qt.KeyboardModifiers
+        self, widget: QWidget | None, key: Qt.Key, modifiers: Qt.KeyboardModifier
     ) -> None:
         # QTest.sendKeyEvent is not available in PyQt5 and PyQt6 only exposes
         # its single char overload, which accepts one latin-1 byte
@@ -414,16 +429,19 @@ class MacroKeyEvent(BaseMacroEvent):  # noqa: PLW1641
             encoded_text = self.text.encode("latin-1")
         except UnicodeEncodeError:
             encoded_text = b""
-        if len(encoded_text) == 1 and hasattr(QTest, "sendKeyEvent"):
+        if len(encoded_text) == 1 and hasattr(_qtest, "sendKeyEvent"):
             action = (
                 QTest.KeyAction.Release if self.is_release else QTest.KeyAction.Press
             )
-            QTest.sendKeyEvent(action, widget, key, encoded_text, modifiers)
+            _qtest.sendKeyEvent(action, widget, key, encoded_text, modifiers)
             return
 
         # Shortcuts are not triggered by events sent directly to the widget
         event_type = QEvent.Type.KeyRelease if self.is_release else QEvent.Type.KeyPress
-        QApplication.sendEvent(widget, QKeyEvent(event_type, key, modifiers, self.text))
+        if widget is not None:
+            QApplication.sendEvent(
+                widget, QKeyEvent(event_type, key, modifiers, self.text)
+            )
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, MacroKeyEvent):
@@ -481,8 +499,8 @@ class MacroMouseMoveEvent(BaseMacroEvent):  # noqa: PLW1641
                 QPointF(corrected_position.local_point),
                 QPointF(corrected_position.global_point),
                 Qt.MouseButton.NoButton,
-                Qt.MouseButtons(self.buttons),
-                Qt.KeyboardModifiers(self.modifiers),
+                utils.mouse_buttons(self.buttons),
+                utils.keyboard_modifiers(self.modifiers),
             )
             QApplication.postEvent(widget, event)
             QApplication.processEvents()
@@ -532,17 +550,17 @@ class MacroMouseEvent(BaseMacroEvent):  # noqa: PLW1641
         schedule_next()
         if not self.is_release:
             # Ensure the widget under the mouse cursor is focused
-            QTest.mousePress(
+            _qtest.mousePress(
                 widget,
                 Qt.MouseButton(self.button),
-                Qt.KeyboardModifiers(self.modifiers),
+                utils.keyboard_modifiers(self.modifiers),
                 corrected_position.local_point,
             )
         else:
-            QTest.mouseRelease(
+            _qtest.mouseRelease(
                 widget,
                 Qt.MouseButton(self.button),
-                Qt.KeyboardModifiers(self.modifiers),
+                utils.keyboard_modifiers(self.modifiers),
                 corrected_position.local_point,
             )
         if self._triggers_context_menu():
@@ -554,7 +572,7 @@ class MacroMouseEvent(BaseMacroEvent):  # noqa: PLW1641
                     QContextMenuEvent.Reason.Mouse,
                     corrected_position.local_point,
                     corrected_position.global_point,
-                    Qt.KeyboardModifiers(self.modifiers),
+                    utils.keyboard_modifiers(self.modifiers),
                 ),
             )
 
@@ -634,10 +652,10 @@ class MacroMouseDoubleClickEvent(BaseMacroEvent):  # noqa: PLW1641
         )
         self.move_cursor(corrected_position.global_point)
         schedule_next()
-        QTest.mouseDClick(
+        _qtest.mouseDClick(
             widget,
             Qt.MouseButton(self.button),
-            Qt.KeyboardModifiers(self.modifiers),
+            utils.keyboard_modifiers(self.modifiers),
             corrected_position.local_point,
         )
 
@@ -674,7 +692,7 @@ class MacroMenuActionEvent(BaseMacroEvent):  # noqa: PLW1641
         schedule_next()
         # Activate the item like a user would, so that the menus close and
         # QMenu.exec returns the activated action
-        QTest.keyClick(menu, Qt.Key.Key_Return)
+        _qtest.keyClick(menu, Qt.Key.Key_Return)
 
     def _find_root_action(self) -> tuple[QMenu, "QAction"]:
         if self.action_path:
@@ -724,10 +742,13 @@ def _find_menu_action(menu: QMenu, text: str) -> "QAction | None":
 
 def _context_menu_opens_on_release() -> bool:
     """Check if context menus open on mouse release instead of press."""
-    style_hints = QGuiApplication.styleHints()
     # The trigger is configurable since Qt 6.8
-    if hasattr(style_hints, "contextMenuTrigger"):
-        return style_hints.contextMenuTrigger() == Qt.ContextMenuTrigger.Release
+    context_menu_trigger = getattr(
+        QGuiApplication.styleHints(), "contextMenuTrigger", None
+    )
+    trigger_type = getattr(Qt, "ContextMenuTrigger", None)
+    if context_menu_trigger is not None and trigger_type is not None:
+        return context_menu_trigger() == trigger_type.Release
     return sys.platform == "win32"
 
 
@@ -770,7 +791,7 @@ class Macro:
         }
         for event in self.events:
             class_name = event.__class__.__name__
-            serialized_event = dataclasses.asdict(event)  # type: ignore[call-overload]
+            serialized_event = dataclasses.asdict(event)
             serialized_event["type"] = class_name
             events.append(serialized_event)
         return data

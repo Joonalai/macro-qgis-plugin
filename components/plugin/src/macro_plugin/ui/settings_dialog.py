@@ -53,7 +53,12 @@ from qgis.PyQt.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from qgis_macros.settings import SettingCategory, Settings, WidgetType
+from qgis_macros.settings import (
+    SettingCategory,
+    Settings,
+    WidgetConfig,
+    WidgetType,
+)
 from qgis_plugin_tools.tools.custom_logging import (
     LogTarget,
     get_log_level_key,
@@ -61,6 +66,7 @@ from qgis_plugin_tools.tools.custom_logging import (
 )
 from qgis_plugin_tools.tools.resources import load_ui_from_file
 from qgis_plugin_tools.tools.settings import set_setting
+from qgis_plugin_tools.utils.typing_utils import require
 
 UI_CLASS: QWidget = load_ui_from_file(
     str(Path(__file__).parent.joinpath("settings_dialog.ui"))
@@ -95,9 +101,10 @@ class SettingsDialog(QDialog, UI_CLASS):  # type: ignore
         self._setup_logging_settings()
 
         self.button_box.accepted.connect(self.close)
-        self.button_box.button(QDialogButtonBox.StandardButton.Reset).clicked.connect(
-            self._reset_settings
+        reset_button = require(
+            self.button_box.button(QDialogButtonBox.StandardButton.Reset)
         )
+        reset_button.clicked.connect(self._reset_settings)
 
     def _setup_plugin_settings(self) -> None:
         for setting in Settings:
@@ -107,8 +114,9 @@ class SettingsDialog(QDialog, UI_CLASS):  # type: ignore
         # Clear all items from the settings layout
         while self.layout_setting_items.count():
             child = self.layout_setting_items.takeAt(0)
-            if child.widget():
-                child.widget().deleteLater()
+            widget = child.widget() if child is not None else None
+            if widget is not None:
+                widget.deleteLater()
 
         # Clear stored widgets and group boxes
         self._widgets.clear()
@@ -146,18 +154,7 @@ class SettingsDialog(QDialog, UI_CLASS):  # type: ignore
             widget.setChecked(setting.get())
             widget.stateChanged.connect(setting.set)
         elif widget_type == WidgetType.SPIN_BOX:
-            if isinstance(setting_meta.default, int):
-                widget = QSpinBox()
-            else:
-                widget = QDoubleSpinBox()
-                widget.setDecimals(3)
-            if widget_config:
-                if widget_config.minimum is not None:
-                    widget.setMinimum(widget_config.minimum)
-                if widget_config.maximum is not None:
-                    widget.setMaximum(widget_config.maximum)
-                if widget_config.step is not None:
-                    widget.setSingleStep(widget_config.step)
+            widget = self._create_spin_box(setting_meta.default, widget_config)
             widget.setValue(setting.get())  # noqa: QGS202
             widget.valueChanged.connect(setting.set)
         else:
@@ -166,6 +163,32 @@ class SettingsDialog(QDialog, UI_CLASS):  # type: ignore
         # Store widget and add it to the group layout
         self._widgets[setting] = widget
         group_layout.addRow(label, widget)
+
+    @staticmethod
+    def _create_spin_box(
+        default: object, config: WidgetConfig | None
+    ) -> QSpinBox | QDoubleSpinBox:
+        """Create a spin box for an int default or a double spin box otherwise."""
+        if isinstance(default, int):
+            spin_box = QSpinBox()
+            if config is not None:
+                if config.minimum is not None:
+                    spin_box.setMinimum(int(config.minimum))
+                if config.maximum is not None:
+                    spin_box.setMaximum(int(config.maximum))
+                if config.step is not None:
+                    spin_box.setSingleStep(int(config.step))
+            return spin_box
+        double_spin_box = QDoubleSpinBox()
+        double_spin_box.setDecimals(3)
+        if config is not None:
+            if config.minimum is not None:
+                double_spin_box.setMinimum(config.minimum)
+            if config.maximum is not None:
+                double_spin_box.setMaximum(config.maximum)
+            if config.step is not None:
+                double_spin_box.setSingleStep(config.step)
+        return double_spin_box
 
     def _setup_logging_settings(self) -> None:
         self.combo_box_log_level_file.addItems(LOGGING_LEVELS)
