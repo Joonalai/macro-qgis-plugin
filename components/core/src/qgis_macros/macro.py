@@ -72,21 +72,41 @@ _qtest: Any = QTest
 
 @dataclass
 class WidgetSpec:
-    """Identify a widget by its class name and display text."""
+    """Identify a widget by its class name, object name and display text.
+
+    The object name is used when available, since the text is translated.
+    """
 
     widget_class: str
     text: str = ""
+    object_name: str = ""
 
     @staticmethod
     def create(widget: QWidget) -> "WidgetSpec":
         """Create a WidgetSpec from an existing widget."""
-        return WidgetSpec(widget.__class__.__name__, utils.get_widget_text(widget))
+        return WidgetSpec(
+            widget.__class__.__name__,
+            utils.get_widget_text(widget),
+            utils.widget_object_name(widget),
+        )
 
-    def matches(self, widget: QWidget) -> bool:
-        """Return True if *widget* matches this spec's class and text."""
-        return (
-            widget.__class__.__name__ == self.widget_class
-            and self.text == utils.get_widget_text(widget)
+    def matches(self, widget: QWidget, *, exact: bool = False) -> bool:
+        """Return True if *widget* has the class and the object name or the text.
+
+        With *exact*, the text must match also when the object name does.
+        """
+        return utils.widget_matches(
+            widget, self.widget_class, self.text, self.object_name, exact=exact
+        )
+
+    def matches_structure(self, widget: QWidget) -> bool:
+        """Return True if *widget* has the class and the object name, if known.
+
+        The text is ignored, so a widget found by its place in a widget path
+        matches even if its text is translated.
+        """
+        return utils.widget_matches_structure(
+            widget, self.widget_class, self.object_name
         )
 
 
@@ -97,12 +117,15 @@ class WidgetPathNode:
     widget_class: str
     sibling_index: int
     text: str = ""
+    object_name: str = ""
 
-    def matches(self, widget: QWidget) -> bool:
-        """Check if the given widget matches this node's criteria."""
-        return (
-            widget.__class__.__name__ == self.widget_class
-            and self.text == utils.get_widget_text(widget)
+    def matches(self, widget: QWidget, *, exact: bool = False) -> bool:
+        """Return True if *widget* has the class and the object name or the text.
+
+        With *exact*, the text must match also when the object name does.
+        """
+        return utils.widget_matches(
+            widget, self.widget_class, self.text, self.object_name, exact=exact
         )
 
 
@@ -150,6 +173,7 @@ class WidgetPath:
                         widget_class=current.__class__.__name__,
                         sibling_index=sibling_index,
                         text=utils.get_widget_text(current),
+                        object_name=utils.widget_object_name(current),
                     )
                 )
             current = parent
@@ -599,18 +623,21 @@ class MacroMouseDoubleClickEvent(BaseMacroEvent):  # noqa: PLW1641
 class MacroMenuActionEvent(BaseMacroEvent):  # noqa: PLW1641
     """Activation of a menu item in an open popup menu.
 
-    The item is identified by the texts of the menu items leading to it, so
-    that submenus are opened on playback regardless of the menu positions.
+    The item is identified by the menu items leading to it, so that submenus
+    are opened on playback regardless of the menu positions. The items are
+    matched by their object names when available, since texts are
+    translated, and by their texts otherwise.
     """
 
     action_path: list[str] = field(default_factory=list)
+    action_names: list[str] = field(default_factory=list)
 
     def perform_event_action(self, schedule_next: Callable[[], None]) -> None:
         """Open the submenus on the path and activate the menu item."""
         menu, action = self._find_root_action()
-        for text in self.action_path[1:]:
+        for i, text in enumerate(self.action_path[1:], start=1):
             menu = self._open_submenu(menu, action)
-            action = self._find_action(menu, text)
+            action = self._find_action(menu, text, self._action_name(i))
         if action.menu() is not None:
             raise MenuActionNotFoundError(self.action_path)
 
@@ -620,16 +647,22 @@ class MacroMenuActionEvent(BaseMacroEvent):  # noqa: PLW1641
         # QMenu.exec returns the activated action
         _qtest.keyClick(menu, Qt.Key.Key_Return)
 
+    def _action_name(self, index: int) -> str:
+        """Return the object name of the item at *index* of the path, if known."""
+        return self.action_names[index] if index < len(self.action_names) else ""
+
     def _find_root_action(self) -> tuple[QMenu, "QAction"]:
         if self.action_path:
             for menu in utils.visible_menus():
-                action = _find_menu_action(menu, self.action_path[0])
+                action = _find_menu_action(
+                    menu, self.action_path[0], self._action_name(0)
+                )
                 if action is not None:
                     return menu, action
         raise MenuActionNotFoundError(self.action_path)
 
-    def _find_action(self, menu: QMenu, text: str) -> "QAction":
-        action = _find_menu_action(menu, text)
+    def _find_action(self, menu: QMenu, text: str, object_name: str) -> "QAction":
+        action = _find_menu_action(menu, text, object_name)
         if action is None:
             raise MenuActionNotFoundError(self.action_path)
         return action
@@ -651,19 +684,36 @@ class MacroMenuActionEvent(BaseMacroEvent):  # noqa: PLW1641
         return super().__eq__(other) and self.action_path == other.action_path
 
 
-def _find_menu_action(menu: QMenu, text: str) -> "QAction | None":
-    """Return the visible and enabled item of *menu* with *text*."""
-    return next(
-        (
-            action
-            for action in menu.actions()
-            if action.isVisible()
-            and action.isEnabled()
-            and not action.isSeparator()
-            and utils.menu_item_text(action) == text
-        ),
-        None,
-    )
+def _find_menu_action(
+    menu: QMenu, text: str, object_name: str = ""
+) -> "QAction | None":
+    """Return the visible and enabled item of *menu* with *object_name* or *text*.
+
+    Object names are compared when both are known, texts otherwise. Items
+    matching both come first, since items may share an object name.
+    """
+    actions = [
+        action
+        for action in menu.actions()
+        if action.isVisible() and action.isEnabled() and not action.isSeparator()
+    ]
+    for exact in (True, False):
+        for action in actions:
+            if _menu_action_matches(action, text, object_name, exact=exact):
+                return action
+    return None
+
+
+def _menu_action_matches(
+    action: "QAction", text: str, object_name: str, *, exact: bool
+) -> bool:
+    action_name = action.objectName()
+    if object_name and action_name:
+        if action_name != object_name:
+            return False
+        if not exact:
+            return True
+    return utils.menu_item_text(action) == text
 
 
 def _context_menu_opens_on_release() -> bool:
@@ -705,6 +755,8 @@ class Macro:
     speed: float = 1.0
     qgis_version: int = Qgis.versionInt()
     uid: str = field(default_factory=new_macro_uid, compare=False)
+    #: Locale of the user interface the macro was recorded with, if known.
+    locale: str = field(default="", compare=False)
 
     def serialize(self) -> dict:
         """Serialize the macro to a JSON-compatible dict."""
@@ -714,6 +766,7 @@ class Macro:
             "speed": self.speed,
             "events": events,
             "qgis_version": self.qgis_version,
+            "locale": self.locale,
         }
         for event in self.events:
             class_name = event.__class__.__name__
@@ -729,7 +782,11 @@ class Macro:
         for event_data in data["events"]:
             class_name = event_data.pop("type")
             widget_spec_ = event_data.pop("widget_spec")
-            widget_spec = WidgetSpec(widget_spec_["widget_class"], widget_spec_["text"])
+            widget_spec = WidgetSpec(
+                widget_spec_["widget_class"],
+                widget_spec_["text"],
+                widget_spec_.get("object_name", ""),
+            )
             event_data["widget_spec"] = widget_spec
             if "position" in event_data:
                 position_ = event_data.pop("position")
@@ -751,6 +808,7 @@ class Macro:
                         widget_class=node["widget_class"],
                         sibling_index=node["sibling_index"],
                         text=node.get("text", ""),
+                        object_name=node.get("object_name", ""),
                     )
                     for node in widget_path_data["nodes"]
                 ]
@@ -764,4 +822,10 @@ class Macro:
             event_cls = globals()[class_name]
             event = event_cls(**event_data)
             events.append(event)
-        return cls(events, data["name"], data["speed"], data["qgis_version"])
+        return cls(
+            events,
+            data["name"],
+            data["speed"],
+            data["qgis_version"],
+            locale=data.get("locale", ""),
+        )

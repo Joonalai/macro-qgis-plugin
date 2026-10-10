@@ -17,7 +17,7 @@
 #  along with macro-qgis-plugin. If not, see <https://www.gnu.org/licenses/>.
 
 from macro_test_utils.utils import Dialog
-from qgis.PyQt.QtWidgets import QMenu
+from qgis.PyQt.QtWidgets import QDialogButtonBox, QMenu, QPushButton, QWidget
 from qgis_macros import widget_lookup
 from qgis_macros.macro import (
     Macro,
@@ -110,6 +110,17 @@ def test_resolved_widget_gets_focus(dialog: Dialog) -> None:
     assert dialog.focusWidget() is dialog.line_edit
 
 
+def test_find_child_tells_apart_widgets_sharing_object_name(dialog: Dialog) -> None:
+    parent = QWidget(dialog)
+    buttons = [QPushButton(text, parent) for text in ("a", "b", "c")]
+    for button in buttons:
+        button.setObjectName("same")
+    # The buttons were reordered after recording
+    node = WidgetPathNode("QPushButton", 0, "c", "same")
+
+    assert widget_lookup.find_child(parent, node) is buttons[2]
+
+
 def test_widget_path_is_not_created_for_popups(dialog: Dialog) -> None:
     menu = QMenu(dialog)
     menu.addAction("Action")
@@ -129,6 +140,44 @@ def test_find_by_path_ignores_hidden_widget(dialog: Dialog) -> None:
     dialog.button.hide()
 
     assert widget_lookup.find_by_path(spec, path, position) is None
+
+
+def test_widget_spec_matches_by_object_name_when_text_differs(dialog: Dialog) -> None:
+    dialog.button.setObjectName("button_ok")
+    spec = WidgetSpec.create(dialog.button)
+    assert spec.object_name == "button_ok"
+
+    dialog.button.setText("Translated")
+
+    assert spec.matches(dialog.button)
+    dialog.button.setObjectName("other")
+    assert not spec.matches(dialog.button)
+
+
+def test_widget_spec_matches_standard_dialog_button_by_role(dialog: Dialog) -> None:
+    button_box = QDialogButtonBox(
+        QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel,
+        dialog,
+    )
+    ok_button = require(button_box.button(QDialogButtonBox.StandardButton.Ok))
+    cancel_button = require(button_box.button(QDialogButtonBox.StandardButton.Cancel))
+    spec = WidgetSpec.create(ok_button)
+    assert spec.object_name
+
+    ok_button.setText("Translated")
+
+    assert spec.matches(ok_button)
+    assert not spec.matches(cancel_button)
+
+
+def test_find_by_path_finds_button_with_translated_text(dialog: Dialog) -> None:
+    spec = WidgetSpec.create(dialog.button)
+    path = require(WidgetPath.create(dialog.button))
+    position = Position((0, 0), (0, 0))
+
+    dialog.button.setText("Translated")
+
+    assert widget_lookup.find_by_path(spec, path, position) is dialog.button
 
 
 def test_widget_path_serialization_roundtrip(dialog: Dialog) -> None:
@@ -162,6 +211,7 @@ def test_widget_path_serialization_roundtrip(dialog: Dialog) -> None:
         assert original.widget_class == restored.widget_class
         assert original.sibling_index == restored.sibling_index
         assert original.text == restored.text
+        assert original.object_name == restored.object_name
 
 
 def test_widget_path_backwards_compatible_deserialization() -> None:

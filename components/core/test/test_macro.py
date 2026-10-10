@@ -23,6 +23,20 @@ pytest_plugins = [
 ]
 
 
+def test_macro_locale_is_serialized() -> None:
+    macro = Macro(events=[], locale="fi")
+
+    deserialized = Macro.deserialize(macro.serialize())
+
+    assert deserialized.locale == "fi"
+
+
+def test_macro_without_locale_deserializes_with_empty_locale() -> None:
+    data = {"name": "old", "speed": 1.0, "qgis_version": 33800, "events": []}
+
+    assert Macro.deserialize(data).locale == ""
+
+
 def _create_test_position(x: int, y: int) -> Position:
     return Position((x, y), (x + 10, y + 10))
 

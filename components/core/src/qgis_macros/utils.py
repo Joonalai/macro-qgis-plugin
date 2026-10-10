@@ -25,9 +25,16 @@ from typing import (
     cast,
 )
 
+from qgis.core import QgsApplication
 from qgis.PyQt.QtCore import QObject, QPoint, Qt
 from qgis.PyQt.QtGui import QMouseEvent, QWheelEvent
-from qgis.PyQt.QtWidgets import QAbstractButton, QApplication, QMenu, QWidget
+from qgis.PyQt.QtWidgets import (
+    QAbstractButton,
+    QApplication,
+    QDialogButtonBox,
+    QMenu,
+    QWidget,
+)
 from qgis.utils import iface as iface_
 from qgis_plugin_tools.utils.typing_utils import require
 
@@ -49,6 +56,64 @@ def map_canvas_viewport() -> QWidget | None:
     """Return the viewport widget of the main map canvas, if any."""
     canvas = iface.mapCanvas()
     return canvas.viewport() if canvas is not None else None
+
+
+def current_locale() -> str:
+    """Return the locale of the QGIS user interface, e.g. ``fi``."""
+    return QgsApplication.locale()
+
+
+def widget_object_name(widget: QWidget) -> str:
+    """Return the object name of *widget*, which is the same in every locale.
+
+    The standard buttons of a QDialogButtonBox have no object name, so
+    they are named after their standard button value instead.
+    """
+    name = widget.objectName()
+    if name:
+        return name
+    parent = widget.parentWidget()
+    if isinstance(widget, QAbstractButton) and isinstance(parent, QDialogButtonBox):
+        standard_button = parent.standardButton(widget)
+        if standard_button != QDialogButtonBox.StandardButton.NoButton:
+            return f"QDialogButtonBox.StandardButton.{enum_value(standard_button)}"
+    return ""
+
+
+def widget_matches(
+    widget: QWidget,
+    widget_class: str,
+    text: str,
+    object_name: str,
+    *,
+    exact: bool = False,
+) -> bool:
+    """Return True if *widget* has the class and the object name or the text.
+
+    Object names are compared when both are known, since texts are
+    translated. Otherwise the texts are compared. With *exact*, the texts
+    are compared also when the object names match, which tells apart
+    widgets sharing an object name.
+    """
+    if widget.__class__.__name__ != widget_class:
+        return False
+    widget_name = widget_object_name(widget)
+    if object_name and widget_name:
+        if object_name != widget_name:
+            return False
+        if not exact:
+            return True
+    return text == get_widget_text(widget)
+
+
+def widget_matches_structure(
+    widget: QWidget, widget_class: str, object_name: str
+) -> bool:
+    """Return True if the class matches and the object names, if both are known."""
+    if widget.__class__.__name__ != widget_class:
+        return False
+    widget_name = widget_object_name(widget)
+    return not (object_name and widget_name) or object_name == widget_name
 
 
 def get_widget_text(widget: QWidget) -> str:
@@ -136,7 +201,12 @@ def menu_action_path(menu: QMenu, action: "QAction") -> list[str]:
     The path starts from the outermost visible menu, e.g.
     ``["Styles", "fast"]`` for an item of the Styles submenu.
     """
-    path = [menu_item_text(action)]
+    return [menu_item_text(item) for item in menu_action_chain(menu, action)]
+
+
+def menu_action_chain(menu: QMenu, action: "QAction") -> list["QAction"]:
+    """Return the menu items leading to *action*, the outermost first."""
+    chain = [action]
     menus = visible_menus()
     current = menu
     for _ in range(MAXIMUM_PARENT_DEPTH):
@@ -153,5 +223,5 @@ def menu_action_path(menu: QMenu, action: "QAction") -> list[str]:
         if parent is None:
             break
         current, parent_action = parent
-        path.insert(0, menu_item_text(parent_action))
-    return path
+        chain.insert(0, parent_action)
+    return chain

@@ -78,13 +78,17 @@ def find_map_canvas(
 def find_by_path(
     spec: "WidgetSpec", path: "WidgetPath | None", _position: "Position"
 ) -> QWidget | None:
-    """Follow *path* from its window down to a visible widget matching *spec*."""
+    """Follow *path* from its window down to a visible widget matching *spec*.
+
+    The text of the widget is not compared, so that the widget is found by
+    its place in the path even if its text is translated.
+    """
     if path is None:
         return None
     widget = find_widget(path)
-    if widget is None or not widget.isVisible() or not spec.matches(widget):
+    if widget is None or not widget.isVisible():
         return None
-    return widget
+    return widget if spec.matches_structure(widget) else None
 
 
 def find_by_position(
@@ -165,8 +169,9 @@ def _follow_nodes(window: QWidget, nodes: Iterable["WidgetPathNode"]) -> QWidget
 def find_child(parent: QWidget, node: "WidgetPathNode") -> QWidget | None:
     """Return the direct child of *parent* described by *node*.
 
-    The child is found by its sibling index and text, by its text alone, or
-    by its index alone, in this order.
+    The child is found by its sibling index and name or text, by its name
+    or text alone, or by its index alone, in this order. Children matching
+    both the name and the text come first, since children may share a name.
     """
     same_class_children = [
         child
@@ -174,17 +179,19 @@ def find_child(parent: QWidget, node: "WidgetPathNode") -> QWidget | None:
         if child.__class__.__name__ == node.widget_class
         and child.parentWidget() is parent
     ]
-    if node.sibling_index < len(same_class_children):
-        candidate = same_class_children[node.sibling_index]
-        if node.matches(candidate):
-            return candidate
-    if node.text:
-        for child in same_class_children:
-            if node.matches(child):
-                return child
-    if node.sibling_index < len(same_class_children):
-        return same_class_children[node.sibling_index]
-    return None
+    indexed = (
+        same_class_children[node.sibling_index]
+        if node.sibling_index < len(same_class_children)
+        else None
+    )
+    for exact in (True, False):
+        if indexed is not None and node.matches(indexed, exact=exact):
+            return indexed
+        if node.text:
+            for child in same_class_children:
+                if node.matches(child, exact=exact):
+                    return child
+    return indexed
 
 
 # Positions
@@ -210,9 +217,10 @@ def find_nearest_matching_widget(
             ),
             key=lambda child: _squared_distance(point, child),
         )
-        for candidate in candidates[:MAXIMUM_NEAREST_CANDIDATES]:
-            if spec.matches(candidate):
-                return candidate
+        for exact in (True, False):
+            for candidate in candidates[:MAXIMUM_NEAREST_CANDIDATES]:
+                if spec.matches(candidate, exact=exact):
+                    return candidate
         widget = widget.parentWidget()
     return None
 

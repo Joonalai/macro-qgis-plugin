@@ -6,6 +6,8 @@
 - Fixed recording wheel events on Qt 6
 - Fixed map canvas macros failing when the window has moved or is covered
 - Widget paths find windows by object name, so macros play in other projects
+- Widgets and menu items are matched by object name, so macros play in other locales
+- Macros record the locale and the panel warns when playing with another one
 
 ## 1.0.1 - 2026-10-04
 
