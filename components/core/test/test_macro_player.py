@@ -24,13 +24,15 @@ from macro_test_utils import macro_utils
 from macro_test_utils.utils import WidgetEventListener, WidgetInfo
 from qgis.core import Qgis, QgsFeature
 from qgis.gui import QgsMapToolDigitizeFeature
-from qgis.PyQt.QtCore import QPoint, Qt, QTimer
-from qgis.PyQt.QtWidgets import QMenu
+from qgis.PyQt.QtCore import QPoint, QRect, QSize, Qt, QTimer
+from qgis.PyQt.QtWidgets import QApplication, QDialog, QMenu
 from qgis_macros.exceptions import MacroPlaybackEndedError
 from qgis_macros.macro import (
+    BaseMacroEvent,
     Macro,
     MacroEvent,
     MacroMenuActionEvent,
+    MacroMouseEvent,
     MacroMouseMoveEvent,
     MacroWheelEvent,
     WidgetSpec,
@@ -51,6 +53,7 @@ if TYPE_CHECKING:
     from macro_test_utils.utils import Dialog
     from pytest_mock import MockerFixture
     from pytestqt.qtbot import QtBot
+    from qgis.gui import QgsMapCanvas
     from qgis.PyQt.QtGui import QAction
 
 pytest_plugins = [
@@ -164,6 +167,10 @@ def test_macro_player_should_click_moved_button(
     mocker: "MockerFixture",
 ):
     # Arrange
+    # Test the position based lookup, which is used when there is no widget path
+    for event in button_click_macro.events:
+        if isinstance(event, BaseMacroEvent):
+            event.widget_path = None
     initial_position = dialog.pos()
     # Move the dialog slightly. The correct button should still be found
     dialog.move(initial_position.x(), initial_position.y() - 50)
@@ -417,6 +424,86 @@ def test_macro_player_should_play_digitizing_polygon(
     assert len(features) == 1
     assert features[0].isValid()
     assert features[0].geometry().wkbType() == Qgis.WkbType.Polygon
+
+
+@pytest.mark.parametrize("obstacle", ["window_moved", "modal_dialog_over_canvas"])
+@pytest.mark.usefixtures("empty_layer")
+@pytest.mark.qgis_show_map(timeout=0)
+def test_macro_player_should_play_canvas_macro_regardless_of_screen_position(
+    macro_player: MacroPlayer,
+    digitize_polygon_macro: Macro,
+    qtbot: "QtBot",
+    digitize_feature_map_tool: QgsMapToolDigitizeFeature,
+    qgis_canvas: "QgsMapCanvas",
+    obstacle: str,
+):
+    # Arrange
+    first_event = digitize_polygon_macro.events[0]
+    assert isinstance(first_event, MacroMouseEvent)
+    recorded_point = first_event.position.global_point
+    window = require(qgis_canvas.window())
+    if obstacle == "window_moved":
+        window.move(window.x() + 500, window.y() + 500)
+    else:
+        dialog = QDialog(window)
+        dialog.setWindowModality(Qt.WindowModality.ApplicationModal)
+        dialog.setGeometry(QRect(recorded_point - QPoint(50, 50), QSize(200, 200)))
+        qtbot.addWidget(dialog)
+        dialog.show()
+        qtbot.waitExposed(dialog)
+    qtbot.waitUntil(
+        lambda: QApplication.widgetAt(recorded_point) is not qgis_canvas.viewport()
+    )
+    features: list[QgsFeature] = []
+    digitize_feature_map_tool.digitizingCompleted.connect(
+        lambda feature: features.append(QgsFeature(feature))
+    )
+
+    # Act
+    with qtbot.waitSignals(
+        [macro_player.playback_ended, digitize_feature_map_tool.digitizingCompleted],
+        check_params_cbs=checkers,
+        timeout=TIMEOUT,
+    ):
+        macro_player.play(digitize_polygon_macro)
+
+    # Assert
+    assert len(features) == 1
+    assert features[0].geometry().wkbType() == Qgis.WkbType.Polygon
+
+
+@pytest.mark.usefixtures("empty_layer")
+@pytest.mark.qgis_show_map(timeout=0)
+def test_macro_player_should_play_hover_moves_on_covered_canvas(
+    macro_player: MacroPlayer,
+    digitize_polygon_macro: Macro,
+    qtbot: "QtBot",
+    qgis_canvas: "QgsMapCanvas",
+    mocker: "MockerFixture",
+):
+    # Arrange
+    move_event = next(
+        event
+        for event in digitize_polygon_macro.events
+        if isinstance(event, MacroMouseMoveEvent)
+    )
+    move_event.buttons = enum_value(Qt.MouseButton.NoButton)
+    recorded_point = move_event.positions[0].global_point
+    dialog = QDialog(require(qgis_canvas.window()))
+    dialog.setGeometry(QRect(recorded_point - QPoint(50, 50), QSize(200, 200)))
+    qtbot.addWidget(dialog)
+    dialog.show()
+    qtbot.waitExposed(dialog)
+    # The cursor moves over the dialog, so the canvas gets no events from it
+    mocker.patch.object(BaseMacroEvent, "move_cursor")
+
+    # Act and assert
+    with qtbot.waitSignals(
+        [macro_player.playback_ended, qgis_canvas.xyCoordinates],
+        check_params_cbs=checkers,
+        timeout=TIMEOUT,
+    ):
+        macro_player.play(Macro([move_event]))
 
 
 @pytest.fixture
