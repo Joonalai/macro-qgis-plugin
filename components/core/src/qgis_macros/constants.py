@@ -19,6 +19,6 @@
 """Constants used by the macro recording and playback engine."""
 
 MS_EPSILON = 20
-MAXIMUM_NEAREST_CANDIDATES = 4
+MAXIMUM_NEAREST_CANDIDATES = 6
 MAXIMUM_PARENT_DEPTH = 7
 ASCII_KEY_LIMIT = 0x80
