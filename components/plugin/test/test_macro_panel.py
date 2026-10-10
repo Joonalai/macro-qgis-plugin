@@ -289,6 +289,21 @@ def test_macro_panel_play_macro(
     mock_macro_player.play.assert_called_once_with(mock_macro)
 
 
+def test_macro_panel_warns_when_macro_locale_differs(
+    macro_panel: MacroPanel,
+    macro_model: MacroTableModel,
+    mock_macro_player: "MagicMock",
+    mocker: "MockerFixture",
+) -> None:
+    msg_bar = mocker.patch("macro_plugin.ui.macro_panel.MsgBar")
+    macro_model.add_macro(Macro(events=[], name="other", locale="xx_XX"))
+
+    macro_panel._play_macros([(macro_model.macros[0], None)])
+
+    msg_bar.warning.assert_called_once()
+    mock_macro_player.play.assert_called_once()
+
+
 @pytest.mark.usefixtures("record_macro", "set_macro_selected")
 def test_macro_panel_delete_macro(
     macro_panel: MacroPanel,

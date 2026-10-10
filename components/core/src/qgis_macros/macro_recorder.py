@@ -53,6 +53,7 @@ class _WatchedMenuItem:
     menu: QMenu
     action: "QAction"
     action_path: list[str]
+    action_names: list[str]
     release_event: MacroMouseEvent | None
 
 
@@ -121,7 +122,7 @@ class MacroRecorder(QObject):
             else self._recorded_events
         )
         self._interpolate_mouse_move_events(events)
-        macro = Macro(events)
+        macro = Macro(events, locale=utils.current_locale())
         LOGGER.debug("Recorded macro %s", macro)
         return macro
 
@@ -310,10 +311,12 @@ class MacroRecorder(QObject):
         if action is None or action.menu() is not None or action.isSeparator():
             return
         # The path must be read while the menus are still open
+        chain = utils.menu_action_chain(widget, action)
         self._watched_menu_item = _WatchedMenuItem(
             menu=widget,
             action=action,
-            action_path=utils.menu_action_path(widget, action),
+            action_path=[utils.menu_item_text(item) for item in chain],
+            action_names=[item.objectName() for item in chain],
             release_event=release_event,
         )
         widget.triggered.connect(self._menu_item_triggered)
@@ -352,6 +355,7 @@ class MacroRecorder(QObject):
                 widget_spec=WidgetSpec.create(watched.menu),
                 ms_since_last_event=elapsed,
                 action_path=watched.action_path,
+                action_names=watched.action_names,
             )
         )
 

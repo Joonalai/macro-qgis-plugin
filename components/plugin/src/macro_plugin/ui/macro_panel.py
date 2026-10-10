@@ -48,6 +48,7 @@ from qgis_macros.macro_player import (
 from qgis_macros.macro_recorder import MacroRecorder
 from qgis_macros.macro_workflow import MacroWorkflow
 from qgis_macros.settings import Settings
+from qgis_macros.utils import current_locale
 from qgis_plugin_tools.tools.custom_logging import bar_msg
 from qgis_plugin_tools.tools.decorations import log_if_fails
 from qgis_plugin_tools.tools.i18n import tr
@@ -362,6 +363,7 @@ class MacroPanel(UI_CLASS, QgsDevToolWidget):  # type: ignore
 
     def _play_next_macro(self) -> None:
         macro, self._played_step = self._play_queue.pop(0)
+        self._warn_about_locale(macro)
         if Settings.profile_macros.get():
             require(QgsApplication.profiler()).start(
                 f"Macro: {macro.name}", Settings.profile_macro_group.get()
@@ -373,6 +375,22 @@ class MacroPanel(UI_CLASS, QgsDevToolWidget):  # type: ignore
                 self._played_workflow, self._played_step
             )
         self._player.play(macro)
+
+    @staticmethod
+    def _warn_about_locale(macro: Macro) -> None:
+        """Warn if the macro was recorded with another user interface locale."""
+        locale = current_locale()
+        if macro.locale and macro.locale != locale:
+            MsgBar.warning(
+                tr("Macro recorded with another locale"),
+                tr(
+                    "Macro '{}' was recorded with locale {} but the current locale "
+                    "is {}. Widgets and menu items may not be found.",
+                    macro.name,
+                    macro.locale,
+                    locale,
+                ),
+            )
 
     def _finish_playback(self) -> None:
         self._play_queue.clear()

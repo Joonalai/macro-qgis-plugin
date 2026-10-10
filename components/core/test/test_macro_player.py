@@ -519,12 +519,67 @@ def styles_menu(dialog: "Dialog") -> "Iterator[tuple[QMenu, QAction]]":
     menu.close()
 
 
-def _menu_action_macro(*action_path: str) -> Macro:
+def _menu_action_macro(
+    *action_path: str, action_names: list[str] | None = None
+) -> Macro:
     return Macro(
         events=[
-            MacroMenuActionEvent(WidgetSpec("QMenu"), action_path=list(action_path))
+            MacroMenuActionEvent(
+                WidgetSpec("QMenu"),
+                action_path=list(action_path),
+                action_names=action_names or [],
+            )
         ]
     )
+
+
+def test_macro_player_should_activate_menu_item_by_object_name(
+    styles_menu: "tuple[QMenu, QAction]",
+    macro_player: MacroPlayer,
+    dialog: "Dialog",
+    qtbot: "QtBot",
+):
+    menu, fast = styles_menu
+    fast.setObjectName("mActionFast")
+    # The texts are translated after recording
+    fast.setText("nopea")
+    menu.popup(dialog.mapToGlobal(QPoint(10, 10)))
+    qtbot.waitExposed(menu)
+
+    with qtbot.waitSignals(
+        [macro_player.playback_ended, fast.triggered],
+        check_params_cbs=checkers,
+        timeout=TIMEOUT,
+    ):
+        macro_player.play(
+            _menu_action_macro("Styles", "fast", action_names=["", "mActionFast"])
+        )
+
+    assert not menu.isVisible()
+
+
+def test_macro_player_should_tell_apart_menu_items_sharing_object_name(
+    styles_menu: "tuple[QMenu, QAction]",
+    macro_player: MacroPlayer,
+    dialog: "Dialog",
+    qtbot: "QtBot",
+):
+    menu, fast = styles_menu
+    styles = fast.parent()
+    assert isinstance(styles, QMenu)
+    for action in styles.actions():
+        action.setObjectName("mActionStyle")
+    menu.popup(dialog.mapToGlobal(QPoint(10, 10)))
+    qtbot.waitExposed(menu)
+
+    with qtbot.waitSignals(
+        [macro_player.playback_ended, fast.triggered],
+        check_params_cbs=checkers,
+        timeout=TIMEOUT,
+    ):
+        macro_player.play(
+            _menu_action_macro("Styles", "fast", action_names=["", "mActionStyle"])
+        )
 
 
 def test_macro_player_should_activate_submenu_item(
