@@ -23,6 +23,9 @@ MANIFEST
 
 # Unit test / coverage reports
 htmlcov/
+
+# Sphinx
+docs/_build/
 .tox/
 .nox/
 .coverage
