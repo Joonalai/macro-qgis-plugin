@@ -34,6 +34,7 @@ from qgis.PyQt.QtWidgets import QMenu
 from qgis_macros.macro import MacroMenuActionEvent, MacroMouseEvent, Position
 from qgis_macros.macro_recorder import MacroRecorder
 from qgis_macros.utils import enum_value
+from qgis_plugin_tools.utils.typing_utils import require
 
 if TYPE_CHECKING:
     from pytestqt.qtbot import QtBot
@@ -69,9 +70,7 @@ def test_macro_recorder_manual(
         Qt.KeyboardModifier.ShiftModifier,
         Qt.KeyboardModifier.ControlModifier,
         Qt.KeyboardModifier.AltModifier,
-        Qt.KeyboardModifiers(
-            Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier
-        ),
+        Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier,
     ],
     ids=[
         "no_modifier",
@@ -115,9 +114,7 @@ def test_macro_recorder_should_record_button_clicking_macro(
         Qt.KeyboardModifier.ShiftModifier,
         Qt.KeyboardModifier.ControlModifier,
         Qt.KeyboardModifier.AltModifier,
-        Qt.KeyboardModifiers(
-            Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier
-        ),
+        Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier,
     ],
     ids=[
         "no_modifier",
@@ -161,9 +158,7 @@ def test_macro_recorder_should_record_button_double_clicking_macro(
         Qt.KeyboardModifier.ShiftModifier,
         Qt.KeyboardModifier.ControlModifier,
         Qt.KeyboardModifier.AltModifier,
-        Qt.KeyboardModifiers(
-            Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier
-        ),
+        Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier,
     ],
     ids=[
         "no_modifier",
@@ -198,17 +193,17 @@ def test_macro_recorder_should_record_key_clicking_macro(
     qtbot.keyRelease(dialog.line_edit, Qt.Key.Key_A, modifier=modifier)
     macro = macro_recorder.stop_recording()
 
-    assert (
-        dialog.line_edit.text() == "a"
-        if modifier | Qt.KeyboardModifier.ShiftModifier != modifier
-        else "A"
+    assert dialog.line_edit.text() == (
+        "a" if modifier | Qt.KeyboardModifier.ShiftModifier != modifier else "A"
     )
 
     # Assert
     assert macro.events == [
         macro_utils.mouse_move_macro_event(line_edit),
         *macro_utils.widget_clicking_macro_events(line_edit),
-        *macro_utils.key_macro_events(line_edit, Qt.Key.Key_A, modifiers=modifier),
+        *macro_utils.key_macro_events(
+            line_edit, Qt.Key.Key_A, modifiers=enum_value(modifier)
+        ),
     ]
 
 
@@ -223,7 +218,7 @@ def test_macro_recorder_should_record_digitizing_polygon(
     qgis_canvas: QgsMapCanvas,
 ):
     # Arrange
-    canvas = WidgetInfo.from_widget("viewport", qgis_canvas.viewport())
+    canvas = WidgetInfo.from_widget("viewport", require(qgis_canvas.viewport()))
     initial_position = canvas.position
     second_point = QPoint(
         initial_position.local_point.x(), initial_position.local_point.y() + 3
@@ -269,7 +264,7 @@ def test_macro_recorder_should_record_digitizing_polygon(
 def context_menu(dialog: Dialog) -> Iterator[tuple[QMenu, QMenu]]:
     menu = QMenu(dialog)
     menu.addAction("Zoom to Layer")
-    styles = menu.addMenu("&Styles")
+    styles = require(menu.addMenu("&Styles"))
     styles.addAction("slow")
     styles.addAction("fast")
     yield menu, styles

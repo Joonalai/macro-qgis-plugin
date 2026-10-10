@@ -204,7 +204,7 @@ class MacroWorkflowTreeModel(QAbstractItemModel):
             return self.createIndex(row, column)
         return self.createIndex(row, column, self.workflows[parent.row()])
 
-    def parent(self, index: QModelIndex) -> QModelIndex:  # type: ignore[override]  # noqa: D102
+    def parent(self, index: QModelIndex) -> QModelIndex:  # ty: ignore[invalid-method-override]  # noqa: D102
         workflow = self._parent_workflow(index)
         if workflow is None:
             return QModelIndex()
@@ -225,7 +225,7 @@ class MacroWorkflowTreeModel(QAbstractItemModel):
         self,
         section: int,
         orientation: Qt.Orientation,
-        role: Qt.ItemDataRole = Qt.ItemDataRole.DisplayRole,
+        role: int = Qt.ItemDataRole.DisplayRole,
     ) -> str | None:
         if (
             section == 0
@@ -235,8 +235,11 @@ class MacroWorkflowTreeModel(QAbstractItemModel):
             return tr("Macro workflow")
         return None
 
-    def flags(self, index: QModelIndex) -> Qt.ItemFlag:
-        """Return the flags for the given index."""
+    def flags(self, index: QModelIndex) -> Any:
+        """Return the flags for the given index.
+
+        The return type is Qt.ItemFlags on PyQt5 and Qt.ItemFlag on PyQt6.
+        """
         default_flags = super().flags(index)
         if not index.isValid():
             return default_flags
@@ -246,9 +249,7 @@ class MacroWorkflowTreeModel(QAbstractItemModel):
             default_flags | Qt.ItemFlag.ItemIsEditable | Qt.ItemFlag.ItemIsDropEnabled
         )
 
-    def data(
-        self, index: QModelIndex, role: Qt.ItemDataRole = Qt.ItemDataRole.DisplayRole
-    ) -> Any:
+    def data(self, index: QModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> Any:
         """Return the data for the given index and role."""
         if not index.isValid():
             return None
@@ -260,14 +261,15 @@ class MacroWorkflowTreeModel(QAbstractItemModel):
     def setData(  # noqa: N802
         self,
         index: QModelIndex,
-        value: str,
-        role: Qt.ItemDataRole = Qt.ItemDataRole.EditRole,
+        value: Any,
+        role: int = Qt.ItemDataRole.EditRole,
     ) -> bool:
         """Rename the workflow at *index*."""
         if (
             not index.isValid()
             or self.is_step(index)
             or role != Qt.ItemDataRole.EditRole
+            or not isinstance(value, str)
         ):
             return False
         name = value.strip()
@@ -287,17 +289,17 @@ class MacroWorkflowTreeModel(QAbstractItemModel):
         if count <= 0 or row < 0 or row + count > self.rowCount(parent):
             return False
 
+        workflow = self.workflows[parent.row()] if parent.isValid() else None
+        removed_workflows: list[MacroWorkflow] = []
         self.beginRemoveRows(parent, row, row + count - 1)
-        if parent.isValid():
-            workflow = self.workflows[parent.row()]
+        if workflow is not None:
             del workflow.macro_uids[row : row + count]
-            removed_workflows = []
         else:
             removed_workflows = self.workflows[row : row + count]
             del self.workflows[row : row + count]
         self.endRemoveRows()
 
-        if parent.isValid():
+        if workflow is not None:
             self._refresh_step_numbers(workflow)
             self._save(workflow)
         elif self._storage is not None:
@@ -307,10 +309,10 @@ class MacroWorkflowTreeModel(QAbstractItemModel):
 
     # Drag and drop
 
-    def supportedDragActions(self) -> Qt.DropAction:  # noqa: N802, D102
+    def supportedDragActions(self) -> Any:  # noqa: N802, D102
         return Qt.DropAction.MoveAction | Qt.DropAction.CopyAction
 
-    def supportedDropActions(self) -> Qt.DropAction:  # noqa: N802, D102
+    def supportedDropActions(self) -> Any:  # noqa: N802, D102
         return Qt.DropAction.MoveAction | Qt.DropAction.CopyAction
 
     def mimeTypes(self) -> list[str]:  # noqa: N802, D102
@@ -331,19 +333,22 @@ class MacroWorkflowTreeModel(QAbstractItemModel):
 
     def canDropMimeData(  # noqa: N802, D102
         self,
-        data: QMimeData,
+        data: QMimeData | None,
         action: Qt.DropAction,  # noqa: ARG002
         row: int,  # noqa: ARG002
         column: int,  # noqa: ARG002
         parent: QModelIndex,
     ) -> bool:
-        return data.hasFormat(MACRO_UIDS_MIME_TYPE) and (
-            parent.isValid() and not self.is_step(parent)
+        return (
+            data is not None
+            and data.hasFormat(MACRO_UIDS_MIME_TYPE)
+            and parent.isValid()
+            and not self.is_step(parent)
         )
 
     def dropMimeData(  # noqa: N802
         self,
-        data: QMimeData,
+        data: QMimeData | None,
         action: Qt.DropAction,
         row: int,
         column: int,
@@ -356,10 +361,10 @@ class MacroWorkflowTreeModel(QAbstractItemModel):
         """
         if action == Qt.DropAction.IgnoreAction:
             return True
-        if not self.canDropMimeData(data, action, row, column, parent):
+        if data is None or not self.canDropMimeData(data, action, row, column, parent):
             return False
         try:
-            uids = json.loads(bytes(data.data(MACRO_UIDS_MIME_TYPE)).decode("utf-8"))
+            uids = json.loads(data.data(MACRO_UIDS_MIME_TYPE).data().decode("utf-8"))
         except ValueError:
             return False
         if not isinstance(uids, list) or not uids:

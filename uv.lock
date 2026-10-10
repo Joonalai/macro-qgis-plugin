@@ -635,7 +635,7 @@ dependencies = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "qgis-plugin-tools", specifier = ">=2.0.0" }]
+requires-dist = [{ name = "qgis-plugin-tools", specifier = ">=2.1.0" }]
 
 [[package]]
 name = "macro-qgis-plugin"
@@ -649,7 +649,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "macro-qgis-core", editable = "components/core" },
-    { name = "qgis-plugin-tools", specifier = ">=1.0.0" },
+    { name = "qgis-plugin-tools", specifier = ">=2.1.0" },
 ]
 
 [[package]]

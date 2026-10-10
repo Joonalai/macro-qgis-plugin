@@ -138,8 +138,12 @@ class WidgetEventListener(QObject):
             widget.removeEventFilter(self)
         self.widgets.clear()
 
-    def eventFilter(self, watched_object: QObject, event: QEvent) -> bool:  # noqa: N802
+    def eventFilter(  # noqa: N802  # ty: ignore[invalid-method-override]
+        self, watched_object: QObject | None, event: QEvent | None
+    ) -> bool:
         """Override of QObject.eventFilter to detect double clicks, moves and wheels."""
+        if watched_object is None or event is None:
+            return False
         if event.type() == QEvent.Type.MouseButtonDblClick:
             self.double_clicked.emit()
         elif event.type() == QEvent.Type.MouseMove:

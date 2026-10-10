@@ -21,6 +21,8 @@ from typing import TYPE_CHECKING
 import pytest
 from qgis.PyQt.QtCore import QPoint, Qt
 from qgis_macros.macro import Macro, MacroEvent, Position
+from qgis_macros.utils import enum_value
+from qgis_plugin_tools.utils.typing_utils import require
 
 from macro_test_utils import macro_utils
 from macro_test_utils.utils import Dialog, WidgetInfo
@@ -129,7 +131,8 @@ def combobox_item_click_macro_event(
     combobox = dialog.combobox
     combobox_info = dialog_widget_positions["combobox"]
     # Center gives a result with a suspicious x...
-    y_coordinate = combobox.view().visualRect(combobox.model().index(1, 0)).y()
+    view = require(combobox.view())
+    y_coordinate = view.visualRect(require(combobox.model()).index(1, 0)).y()
 
     point = QPoint(combobox_info.position.local_position[0], y_coordinate)
     position = Position.from_points(point, combobox.mapToGlobal(point))
@@ -204,7 +207,7 @@ def combobox_item_click_macro(
 
 @pytest.fixture
 def digitize_polygon_macro(qgis_canvas: "QgsMapCanvas") -> Macro:
-    canvas = WidgetInfo.from_widget("viewport", qgis_canvas.viewport())
+    canvas = WidgetInfo.from_widget("viewport", require(qgis_canvas.viewport()))
     initial_position = canvas.position
     second_point = QPoint(
         initial_position.local_point.x(), initial_position.local_point.y() + 3
@@ -226,7 +229,9 @@ def digitize_polygon_macro(qgis_canvas: "QgsMapCanvas") -> Macro:
             macro_utils.mouse_move_macro_event(canvas, [third_position]),
             *macro_utils.widget_clicking_macro_events(canvas, third_position),
             *macro_utils.widget_clicking_macro_events(
-                canvas, initial_position, button=Qt.MouseButton.RightButton
+                canvas,
+                initial_position,
+                button=enum_value(Qt.MouseButton.RightButton),
             ),
         ],
     )

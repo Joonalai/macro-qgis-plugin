@@ -16,6 +16,7 @@
 #  You should have received a copy of the GNU General Public License
 #  along with macro-qgis-plugin. If not, see <https://www.gnu.org/licenses/>.
 import contextlib
+import inspect
 import json
 from collections.abc import Iterator
 from typing import TYPE_CHECKING, cast
@@ -35,6 +36,7 @@ from qgis_macros.macro_player import (
 from qgis_macros.macro_recorder import MacroRecorder
 from qgis_macros.macro_workflow import MacroWorkflow
 from qgis_macros.settings import Settings
+from qgis_plugin_tools.utils.typing_utils import require, require_type
 
 from macro_plugin.macro_storage import MacroStorage, WorkflowStorage
 from macro_plugin.ui.macro_model import MacroTableModel
@@ -98,18 +100,19 @@ def macro_panel(
     # Close any open inline editor and clear selection before destruction
     # to prevent signals firing on already-deleted child widgets.
     panel.table_view.setCurrentIndex(QModelIndex())
-    panel.table_view.selectionModel().selectionChanged.disconnect(
+    require(panel.table_view.selectionModel()).selectionChanged.disconnect(
         panel._update_ui_state
     )
     panel.tree_view_workflows.setCurrentIndex(QModelIndex())
-    panel.tree_view_workflows.selectionModel().selectionChanged.disconnect(
+    require(panel.tree_view_workflows.selectionModel()).selectionChanged.disconnect(
         panel._update_ui_state
     )
     panel.close()
     QgsApplication.processEvents()
     QApplication.sendPostedEvents(None, 0)
-    if MACRO_GROUP in QgsApplication.profiler().groups():
-        QgsApplication.profiler().clear(MACRO_GROUP)
+    profiler = require(QgsApplication.profiler())
+    if MACRO_GROUP in profiler.groups():
+        profiler.clear(MACRO_GROUP)
 
 
 @pytest.fixture
@@ -337,7 +340,7 @@ def test_macro_panel_loads_autosaved_macros(
     panel = MacroPanel(mock_macro_recorder, mock_macro_player, macro_storage)
     qtbot.addWidget(panel)
 
-    assert panel.table_view.model().macros == macros  # type: ignore[union-attr]
+    assert require_type(panel.table_view.model(), MacroTableModel).macros == macros
 
 
 def test_macro_panel_autosaves_recorded_macro(
@@ -604,7 +607,7 @@ def test_play_workflow_stops_on_failure(
     macro_panel._play_workflow(workflow, 1)
 
     with pytest.raises(MacroPluginError, match="stopped at step 2"):
-        macro_panel._macro_playback_ended.__wrapped__(  # type: ignore[attr-defined]
+        inspect.unwrap(macro_panel._macro_playback_ended)(
             macro_panel,
             MacroPlaybackReport(MacroPlaybackStatus.FAILURE, ValueError("boom")),
         )
@@ -622,7 +625,7 @@ def test_play_workflow_with_missing_macro_does_not_play(
     workflow_model.add_workflow("broken", ["missing"])
 
     with pytest.raises(MacroPluginError):
-        macro_panel._play_workflow.__wrapped__(  # type: ignore[attr-defined]
+        inspect.unwrap(macro_panel._play_workflow)(
             macro_panel, workflow_model.workflows[0]
         )
 
@@ -681,7 +684,7 @@ def _find_action(menu: "QMenu", text: str) -> "QAction":
             return action
         if action.menu() is not None:
             with contextlib.suppress(LookupError):
-                return _find_action(action.menu(), text)
+                return _find_action(require(action.menu()), text)
     raise LookupError(text)
 
 
@@ -951,6 +954,6 @@ def test_load_invalid_file_adds_nothing(
     macro_file_path.write_text("{not json", encoding="utf-8")
 
     with pytest.raises(InvalidMacroFileError):
-        macro_panel._load_macros_from_file.__wrapped__(macro_panel)  # type: ignore[attr-defined]
+        inspect.unwrap(macro_panel._load_macros_from_file)(macro_panel)
 
     assert macro_model.macros == []

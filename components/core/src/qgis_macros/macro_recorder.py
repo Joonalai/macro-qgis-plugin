@@ -19,11 +19,12 @@
 
 import contextlib
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 from qgis.PyQt.QtCore import QElapsedTimer, QEvent, QObject
 from qgis.PyQt.QtGui import QKeyEvent, QMouseEvent, QWheelEvent
 from qgis.PyQt.QtWidgets import QApplication, QMenu, QWidget
+from qgis_plugin_tools.utils.typing_utils import require
 
 from qgis_macros import utils
 from qgis_macros.macro import (
@@ -102,7 +103,7 @@ class MacroRecorder(QObject):
         self._menu_pressed_buttons.clear()
         self._recording = True
         self._timer.restart()
-        QApplication.instance().installEventFilter(self)
+        require(QApplication.instance()).installEventFilter(self)
 
     def stop_recording(self) -> Macro:
         """Stop recording user actions.
@@ -113,7 +114,7 @@ class MacroRecorder(QObject):
             return Macro([])
         self._recording = False
         self._stop_watching_menu_item()
-        QApplication.instance().removeEventFilter(self)
+        require(QApplication.instance()).removeEventFilter(self)
         events = (
             self._get_filtered_events()
             if self._filter_out_mouse_movements
@@ -124,44 +125,47 @@ class MacroRecorder(QObject):
         LOGGER.debug("Recorded macro %s", macro)
         return macro
 
-    def eventFilter(self, obj: QObject, event: QEvent) -> bool:  # noqa: N802
+    def eventFilter(  # noqa: N802  # ty: ignore[invalid-method-override]
+        self, obj: QObject | None, event: QEvent | None
+    ) -> bool:
         """Event filter to record keyboard and mouse events."""
+        if obj is None or event is None:
+            return False
         if not self._recording or not isinstance(obj, QWidget):
             return super().eventFilter(obj, event)
 
-        widget = cast("QWidget", obj)
         elapsed = self._timer.elapsed()
         ms_since_last_event = elapsed - self.last_record_time
         self.last_record_time = elapsed
 
-        if (
-            isinstance(event, QMouseEvent)
-            and widget in self._widgets_to_filter_events_out
-        ):
-            return super().eventFilter(obj, event)
+        if isinstance(event, QMouseEvent):
+            if obj not in self._widgets_to_filter_events_out:
+                self._record_mouse_event(event, obj, ms_since_last_event)
+        elif isinstance(event, QKeyEvent) and event.type() in [
+            QEvent.Type.KeyPress,
+            QEvent.Type.KeyRelease,
+        ]:
+            self._record_key_event(event, obj, ms_since_last_event)
+        elif isinstance(event, QWheelEvent) and event.type() == QEvent.Type.Wheel:
+            self._record_mouse_wheel_event(event, obj)
 
-        if event.type() in [QEvent.Type.KeyPress, QEvent.Type.KeyRelease]:
-            self._record_key_event(event, widget, ms_since_last_event)
-        elif event.type() in [
+        return super().eventFilter(obj, event)
+
+    def _record_mouse_event(
+        self, event: QMouseEvent, widget: QWidget, elapsed: int
+    ) -> None:
+        if event.type() in [
             QEvent.Type.MouseButtonPress,
             QEvent.Type.MouseButtonRelease,
         ]:
             self._stop_watching_menu_item()
-            macro_event = self._record_mouse_button_event(
-                event, widget, ms_since_last_event
-            )
+            macro_event = self._record_mouse_button_event(event, widget, elapsed)
             if event.type() == QEvent.Type.MouseButtonRelease:
                 self._watch_menu_item(event, widget, macro_event)
         elif event.type() == QEvent.Type.MouseButtonDblClick:
-            self._record_mouse_button_double_click_event(
-                event, widget, ms_since_last_event
-            )
+            self._record_mouse_button_double_click_event(event, widget, elapsed)
         elif event.type() == QEvent.Type.MouseMove:
             self._record_mouse_move_event(event, widget)
-        elif event.type() == QEvent.Type.Wheel:
-            self._record_mouse_wheel_event(event, widget)
-
-        return super().eventFilter(obj, event)
 
     def _get_filtered_events(self) -> list[MacroEvent]:
         filtered_events: list[MacroEvent] = []
@@ -387,14 +391,16 @@ class MacroRecorder(QObject):
 
     def _record_mouse_wheel_event(self, event: QWheelEvent, widget: QWidget) -> None:
         """Record mouse wheel events."""
+        # Qt 6 wheel events have no source
+        source = getattr(event, "source", None)
         self._recorded_events.append(
             MacroWheelEvent(
                 WidgetSpec.create(widget),
                 ms_since_last_event=0,
                 position=Position.from_event(event),
                 delta=event.angleDelta().y(),
-                phase=event.phase(),
-                source=event.source(),
+                phase=enum_value(event.phase()),
+                source=enum_value(source()) if source is not None else 0,
                 inverted=event.inverted(),
                 widget_path=WidgetPath.create(widget),
             )

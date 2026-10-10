@@ -42,6 +42,7 @@ from qgis.PyQt.QtWidgets import (
     QWidget,
 )
 from qgis_macros.settings import Settings
+from qgis_plugin_tools.utils.typing_utils import require
 
 if TYPE_CHECKING:
     from pytestqt.qtbot import QtBot
@@ -87,11 +88,13 @@ def dialog_widget_positions(dialog: Dialog) -> dict[str, utils.WidgetInfo]:
         if isinstance((widget := getattr(dialog, name, None)), QWidget)
     }
     widgets["list_widget_viewport"] = utils.WidgetInfo.from_widget(
-        "list_widget_viewport", dialog.list_widget.viewport()
+        "list_widget_viewport", require(dialog.list_widget.viewport())
     )
     widgets["combobox_viewport"] = utils.WidgetInfo.from_widget(
         "combobox_viewport",
-        dialog.combobox.view().findChild(QWidget, "qt_scrollarea_viewport"),
+        require(
+            require(dialog.combobox.view()).findChild(QWidget, "qt_scrollarea_viewport")
+        ),
     )
 
     return widgets
@@ -104,9 +107,9 @@ def empty_layer(qgis_iface: "QgisInterface") -> QgsVectorLayer:
     temp_feature = QgsVectorLayerUtils.createFeature(
         layer, QgsGeometry.fromWkt(wkt), {}
     )
-    ok, _ = layer.dataProvider().addFeatures([temp_feature])
+    ok, _ = require(layer.dataProvider()).addFeatures([temp_feature])
     assert ok
-    assert QgsProject.instance().addMapLayer(layer)
+    assert require(QgsProject.instance()).addMapLayer(layer)
     qgis_iface.setActiveLayer(layer)
     assert layer.startEditing()
     return layer
@@ -124,7 +127,7 @@ def digitize_feature_map_tool(qgis_canvas: QgsMapCanvas, empty_layer: QgsVectorL
     # The dock widget adds a QgsAdvancedDigitizingCanvasItem to the canvas
     # scene which holds a raw pointer back to the dock and is never removed
     # by the dock's destructor.
-    for item in qgis_canvas.scene().items():
+    for item in require(qgis_canvas.scene()).items():
         if isinstance(item, QgsAdvancedDigitizingCanvasItem):
             sip.delete(item)
     cad_dock.deleteLater()

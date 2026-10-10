@@ -11,7 +11,7 @@ classifiers = [
   "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3.14",
 ]
-dependencies = ["macro-qgis-core", "qgis_plugin_tools>=1.0.0"]
+dependencies = ["macro-qgis-core", "qgis_plugin_tools>=2.1.0"]
 
 
 [project.urls]
