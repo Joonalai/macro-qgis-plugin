@@ -5,11 +5,6 @@
 On Linux:
 
 * Install [uv](https://docs.astral.sh/uv/) if not already available:
-
-  ```bash
-  pip install uv
-  ```
-
 * Create a Python virtual environment with access to the libraries provided by
   the QGIS installation:
 
