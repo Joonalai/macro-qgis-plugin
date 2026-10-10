@@ -43,8 +43,13 @@ iface = cast("QgisInterface", iface_)
 
 def is_object_map_canvas(obj: QObject) -> bool:
     """Return True if *obj* is the map canvas viewport widget."""
+    return obj == map_canvas_viewport()
+
+
+def map_canvas_viewport() -> QWidget | None:
+    """Return the viewport widget of the main map canvas, if any."""
     canvas = iface.mapCanvas()
-    return canvas is not None and obj == canvas.viewport()
+    return canvas.viewport() if canvas is not None else None
 
 
 def get_widget_text(widget: QWidget) -> str:

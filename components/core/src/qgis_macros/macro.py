@@ -328,19 +328,29 @@ class BaseMacroEvent(ABC):  # noqa: PLW1641
         QCursor.setPos(position)
         QgsApplication.processEvents()
 
-    def _use_coordinate_lookup(self) -> bool:
-        """Check if this event targets the map canvas and should use coordinates."""
+    def _targets_map_canvas(self) -> bool:
+        """Check if this event was recorded on the map canvas."""
         return self.widget_path is not None and self.widget_path.is_map_canvas
 
     def get_widget(self, position: Position) -> QWidget:
         """Resolve the target widget at *position*.
 
-        Fall back to a spec-based search if the widget at *position* does not match.
+        Map canvas events target the current map canvas, so they work even if
+        the canvas has moved on screen or another window covers it. Other
+        events are resolved from the recorded widget path. Both fall back to
+        a spec-based search for the widget at *position*.
         """
-        # Try widget path lookup first (unless targeting map canvas)
-        if self.widget_path is not None and not self._use_coordinate_lookup():
+        if self._targets_map_canvas():
+            canvas = utils.map_canvas_viewport()
+            if canvas is not None and canvas.isVisible():
+                canvas.setFocus()
+                return canvas
+            LOGGER.debug("Map canvas not found, falling back to position-based lookup")
+        elif self.widget_path is not None:
             widget = self.widget_path.find_widget()
-            if widget is not None:
+            # A path of a popup (e.g. a menu) has no nodes and no window title,
+            # so it may resolve to a wrong window
+            if widget is not None and self.widget_spec.matches(widget):
                 widget.setFocus()
                 return widget
             LOGGER.debug(
@@ -481,7 +491,15 @@ class MacroMouseMoveEvent(BaseMacroEvent):  # noqa: PLW1641
         widget = self.get_widget(self.positions[0])
 
         for position in self.positions:
-            self.move_cursor(position.widget_corrected_position(widget).global_point)
+            corrected_position = position.widget_corrected_position(widget)
+            self.move_cursor(corrected_position.global_point)
+            if (
+                utils.is_object_map_canvas(widget)
+                and QApplication.widgetAt(corrected_position.global_point) is not widget
+            ):
+                # Another window covers the canvas, so moving the cursor does
+                # not deliver the event to it
+                self._post_move_event(widget, corrected_position)
         schedule_next()
         return
 
@@ -492,18 +510,21 @@ class MacroMouseMoveEvent(BaseMacroEvent):  # noqa: PLW1641
         widget = self.get_widget(self.positions[0])
 
         for position in self.positions:
-            corrected_position = position.widget_corrected_position(widget)
-            # Create and send mouse move events. Qt 6 accepts only QPointF.
-            event = QMouseEvent(
-                QEvent.Type.MouseMove,
-                QPointF(corrected_position.local_point),
-                QPointF(corrected_position.global_point),
-                Qt.MouseButton.NoButton,
-                utils.mouse_buttons(self.buttons),
-                utils.keyboard_modifiers(self.modifiers),
-            )
-            QApplication.postEvent(widget, event)
-            QApplication.processEvents()
+            self._post_move_event(widget, position.widget_corrected_position(widget))
+
+    def _post_move_event(self, widget: QWidget, corrected_position: Position) -> None:
+        """Post a mouse move event at *corrected_position* to *widget*."""
+        # Qt 6 accepts only QPointF
+        event = QMouseEvent(
+            QEvent.Type.MouseMove,
+            QPointF(corrected_position.local_point),
+            QPointF(corrected_position.global_point),
+            Qt.MouseButton.NoButton,
+            utils.mouse_buttons(self.buttons),
+            utils.keyboard_modifiers(self.modifiers),
+        )
+        QApplication.postEvent(widget, event)
+        QApplication.processEvents()
 
     def interpolate_positions(self, number_of_positions: int) -> None:
         """Interpolate the positions to a given number of positions."""

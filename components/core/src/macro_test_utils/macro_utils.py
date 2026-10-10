@@ -24,6 +24,7 @@ from qgis_macros.macro import (
     MacroMouseEvent,
     MacroMouseMoveEvent,
     Position,
+    WidgetPath,
 )
 from qgis_macros.utils import enum_value
 
@@ -45,6 +46,7 @@ def widget_clicking_macro_events(
     return [
         MacroMouseEvent(
             widget_spec=widget.widget_spec,
+            widget_path=WidgetPath.create(widget.widget),
             ms_since_last_event=elapsed[0],
             position=position,
             button=button,
@@ -52,6 +54,7 @@ def widget_clicking_macro_events(
         ),
         MacroMouseEvent(
             widget_spec=widget.widget_spec,
+            widget_path=WidgetPath.create(widget.widget),
             ms_since_last_event=elapsed[1],
             position=position,
             button=button,
@@ -68,6 +71,7 @@ def widget_double_clicking_macro_event(
 ) -> MacroEvent:
     return MacroMouseDoubleClickEvent(
         widget_spec=widget.widget_spec,
+        widget_path=WidgetPath.create(widget.widget),
         ms_since_last_event=elapsed,
         position=widget.position,
         modifiers=modifiers,
@@ -84,6 +88,7 @@ def key_macro_events(
     return [
         MacroKeyEvent(
             widget_spec=widget.widget_spec,
+            widget_path=WidgetPath.create(widget.widget),
             ms_since_last_event=elapsed[0],
             key=key,
             modifiers=modifiers,
@@ -91,6 +96,7 @@ def key_macro_events(
         ),
         MacroKeyEvent(
             widget_spec=widget.widget_spec,
+            widget_path=WidgetPath.create(widget.widget),
             ms_since_last_event=elapsed[1],
             key=key,
             modifiers=modifiers,
@@ -110,6 +116,7 @@ def mouse_move_macro_event(
     positions = positions or [widget.position]
     return MacroMouseMoveEvent(
         widget_spec=widget.widget_spec,
+        widget_path=WidgetPath.create(widget.widget),
         ms_since_last_event=elapsed,
         positions=positions,
         buttons=buttons,
