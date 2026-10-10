@@ -18,7 +18,6 @@
 
 """Utility functions for widget lookup, event position handling, and Qt compat."""
 
-from collections.abc import Iterator
 from enum import Enum
 from typing import (
     TYPE_CHECKING,
@@ -72,41 +71,6 @@ def get_sibling_index(widget: QWidget, parent: QWidget) -> int:
         if sibling is widget:
             return i
     return 0
-
-
-def find_nearest_visible_children_of_type(
-    target_point: QPoint, parent_widget: QWidget, widget_class: str
-) -> Iterator[QWidget]:
-    """Yield visible children of *widget_class* sorted by distance to *target_point*."""
-    widgets = find_nearest_visible_children_with_threshold(target_point, parent_widget)
-    return (widget for widget in widgets if widget.__class__.__name__ == widget_class)
-
-
-def find_nearest_visible_children_with_threshold(
-    target_point: QPoint, parent_widget: QWidget
-) -> Iterator[QWidget]:
-    """Yield all visible descendants of *parent_widget* sorted by distance."""
-    nearest_visible_children = set()
-
-    def distance_to_widget(widget: QWidget) -> int:
-        widget_center = widget.geometry().center()
-
-        # Calculate the Euclidean distance (squared)
-        return (target_point.x() - widget_center.x()) ** 2 + (
-            target_point.y() - widget_center.y()
-        ) ** 2
-
-    def find_recursive(widget: QWidget) -> None:
-        for child in widget.findChildren(QWidget):
-            if child.isVisible():
-                nearest_visible_children.add((child, (distance_to_widget(child))))
-                find_recursive(child)
-
-    # Start the recursive search from the parent widget
-    find_recursive(parent_widget)
-
-    # Sort the results by distance
-    return (child[0] for child in sorted(nearest_visible_children, key=lambda x: x[1]))
 
 
 def enum_value(enum_or_flag: SupportsInt | Enum) -> int:

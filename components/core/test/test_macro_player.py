@@ -26,6 +26,7 @@ from qgis.core import Qgis, QgsFeature
 from qgis.gui import QgsMapToolDigitizeFeature
 from qgis.PyQt.QtCore import QPoint, QRect, QSize, Qt, QTimer
 from qgis.PyQt.QtWidgets import QApplication, QDialog, QMenu
+from qgis_macros import widget_lookup
 from qgis_macros.exceptions import MacroPlaybackEndedError
 from qgis_macros.macro import (
     BaseMacroEvent,
@@ -174,7 +175,7 @@ def test_macro_player_should_click_moved_button(
     initial_position = dialog.pos()
     # Move the dialog slightly. The correct button should still be found
     dialog.move(initial_position.x(), initial_position.y() - 50)
-    spy_get_suitable_widget = mocker.spy(WidgetSpec, "get_suitable_widget")
+    spy_nearest = mocker.spy(widget_lookup, "find_nearest_matching_widget")
 
     # Act and assert
     with qtbot.waitSignals(
@@ -184,7 +185,7 @@ def test_macro_player_should_click_moved_button(
     ):
         macro_player.play(button_click_macro)
 
-    assert spy_get_suitable_widget.call_count == 3
+    assert spy_nearest.call_count == len(button_click_macro.events)
 
 
 def test_macro_player_should_menu_action(

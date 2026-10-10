@@ -17,20 +17,25 @@
 #  along with macro-qgis-plugin. If not, see <https://www.gnu.org/licenses/>.
 
 from macro_test_utils.utils import Dialog
+from qgis.PyQt.QtWidgets import QMenu
+from qgis_macros import widget_lookup
 from qgis_macros.macro import (
     Macro,
     MacroMouseEvent,
+    MacroMouseMoveEvent,
     Position,
     WidgetPath,
     WidgetPathNode,
     WidgetSpec,
 )
+from qgis_plugin_tools.utils.typing_utils import require
 
 
 def test_widget_path_create_and_find(dialog: Dialog) -> None:
-    widget_path = WidgetPath.create(dialog.button)
+    widget_path = require(WidgetPath.create(dialog.button))
 
     assert widget_path.window_title == dialog.windowTitle()
+    assert widget_path.window_object_name == dialog.objectName()
     assert not widget_path.is_map_canvas
     assert len(widget_path.nodes) > 0
     # Last node should be the button itself
@@ -41,8 +46,8 @@ def test_widget_path_create_and_find(dialog: Dialog) -> None:
 
 
 def test_widget_path_finds_correct_sibling(dialog: Dialog) -> None:
-    path1 = WidgetPath.create(dialog.button)
-    path2 = WidgetPath.create(dialog.button2)
+    path1 = require(WidgetPath.create(dialog.button))
+    path2 = require(WidgetPath.create(dialog.button2))
 
     assert path1.find_widget() is dialog.button
     assert path2.find_widget() is dialog.button2
@@ -52,7 +57,7 @@ def test_widget_path_finds_correct_sibling(dialog: Dialog) -> None:
 def test_widget_path_finds_non_button_widgets(dialog: Dialog) -> None:
     for widget_name in ("combobox", "line_edit", "radio_button", "check_box"):
         widget = getattr(dialog, widget_name)
-        path = WidgetPath.create(widget)
+        path = require(WidgetPath.create(widget))
         found = path.find_widget()
         assert found is widget, f"Failed to find {widget_name}"
 
@@ -65,8 +70,71 @@ def test_widget_path_returns_none_for_missing_window(dialog: Dialog) -> None:
     assert path.find_widget() is None
 
 
+def test_widget_path_finds_window_by_object_name_when_title_changes(
+    dialog: Dialog,
+) -> None:
+    dialog.setObjectName("test_dialog")
+    path = require(WidgetPath.create(dialog.button))
+    dialog.setWindowTitle("Changed title")
+
+    assert path.find_widget() is dialog.button
+
+
+def test_widget_path_prefers_window_with_matching_title(dialog: Dialog) -> None:
+    # Dialogs often keep the generic object name from Qt Designer
+    dialog.setObjectName("Dialog")
+    other = Dialog()
+    other.setObjectName("Dialog")
+    other.setWindowTitle("Other dialog")
+    other.show()
+    try:
+        path = require(WidgetPath.create(dialog.button))
+        other_path = require(WidgetPath.create(other.button))
+
+        assert path.find_widget() is dialog.button
+        assert other_path.find_widget() is other.button
+    finally:
+        other.close()
+
+
+def test_resolved_widget_gets_focus(dialog: Dialog) -> None:
+    # e.g. key events after a wheel or a drag go to the widget
+    dialog.button.setFocus()
+    event = MacroMouseMoveEvent(
+        WidgetSpec.create(dialog.line_edit),
+        widget_path=WidgetPath.create(dialog.line_edit),
+    )
+
+    event.get_widget(Position((0, 0), (0, 0)))
+
+    assert dialog.focusWidget() is dialog.line_edit
+
+
+def test_widget_path_is_not_created_for_popups(dialog: Dialog) -> None:
+    menu = QMenu(dialog)
+    menu.addAction("Action")
+    menu.popup(dialog.mapToGlobal(dialog.rect().center()))
+    try:
+        assert WidgetPath.create(menu) is None
+    finally:
+        menu.close()
+
+
+def test_find_by_path_ignores_hidden_widget(dialog: Dialog) -> None:
+    path = require(WidgetPath.create(dialog.button))
+    spec = WidgetSpec.create(dialog.button)
+    position = Position((0, 0), (0, 0))
+    assert widget_lookup.find_by_path(spec, path, position) is dialog.button
+
+    dialog.button.hide()
+
+    assert widget_lookup.find_by_path(spec, path, position) is None
+
+
 def test_widget_path_serialization_roundtrip(dialog: Dialog) -> None:
-    widget_path = WidgetPath.create(dialog.button)
+    widget_path = require(WidgetPath.create(dialog.button))
+    dialog.setObjectName("test_dialog")
+    widget_path = require(WidgetPath.create(dialog.button))
     position = Position((10, 10), (100, 100))
     event = MacroMouseEvent(
         widget_spec=WidgetSpec.create(dialog.button),
@@ -82,6 +150,10 @@ def test_widget_path_serialization_roundtrip(dialog: Dialog) -> None:
     assert isinstance(deserialized_event, MacroMouseEvent)
     assert deserialized_event.widget_path is not None
     assert deserialized_event.widget_path.window_title == widget_path.window_title
+    assert (
+        deserialized_event.widget_path.window_object_name
+        == widget_path.window_object_name
+    )
     assert deserialized_event.widget_path.is_map_canvas == widget_path.is_map_canvas
     assert len(deserialized_event.widget_path.nodes) == len(widget_path.nodes)
     for original, restored in zip(

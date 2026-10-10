@@ -5,6 +5,7 @@
 - Updated from qgis-plugin-copier-template v0.8.1 and switched type checking to ty
 - Fixed recording wheel events on Qt 6
 - Fixed map canvas macros failing when the window has moved or is covered
+- Widget paths find windows by object name, so macros play in other projects
 
 ## 1.0.1 - 2026-10-04
 
