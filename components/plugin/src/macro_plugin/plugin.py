@@ -33,7 +33,7 @@ from qgis_plugin_tools.tools.custom_logging import (
 from qgis_plugin_tools.tools.i18n import tr
 
 import macro_plugin
-from macro_plugin import env
+from macro_plugin import env, startup
 from macro_plugin.macro_storage import (
     MacroStorage,
     WorkflowStorage,
@@ -77,6 +77,7 @@ class MacroPlugin(QObject):
             message_log_name=self.name,
         )
         self.initProcessing()
+        startup.play_from_environment()
 
         if hasattr(iface, "initializationCompleted"):
             iface.initializationCompleted.connect(self.iface_initialization_completed)

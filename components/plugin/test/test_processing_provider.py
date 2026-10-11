@@ -34,7 +34,7 @@ from qgis_macros.macro import Macro
 from qgis_macros.macro_workflow import MacroWorkflow
 from qgis_plugin_tools.utils.typing_utils import require
 
-from macro_plugin import processing_provider
+from macro_plugin import playback
 from macro_plugin.processing_provider import (
     MACRO_PROVIDER_ID,
     WORKFLOW_PROVIDER_ID,
@@ -256,8 +256,8 @@ def test_macro_algorithm_fails_if_event_loop_exits_before_playback_ends(
     mocker: "MockerFixture",
 ) -> None:
     # E.g. the application quits while the macro is played
-    mocker.patch.object(processing_provider, "QEventLoop")
-    mocker.patch.object(processing_provider.MacroPlayer, "play")
+    mocker.patch.object(playback, "QEventLoop")
+    mocker.patch.object(playback.MacroPlayer, "play")
     algorithm = require(macro_provider.algorithm(click_macro.uid))
 
     with pytest.raises(QgsProcessingException, match="canceled"):
