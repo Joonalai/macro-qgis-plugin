@@ -15,14 +15,29 @@
 #
 #  You should have received a copy of the GNU General Public License
 #  along with macro-qgis-plugin. If not, see <https://www.gnu.org/licenses/>.
-"""Steps shared by the macro playbacks of the panel and the processing algorithms."""
+"""Steps shared by the macro playbacks of the panel, processing and startup."""
 
-from qgis.core import QgsApplication
+from collections.abc import Sequence
+from typing import TYPE_CHECKING
+
+from qgis.core import QgsApplication, QgsProcessingFeedback
+from qgis.PyQt.QtCore import QEventLoop
 from qgis_macros.macro import Macro
+from qgis_macros.macro_player import (
+    MacroPlaybackReport,
+    MacroPlaybackStatus,
+    MacroPlayer,
+)
 from qgis_macros.settings import Settings
 from qgis_macros.utils import current_locale
 from qgis_plugin_tools.tools.i18n import tr
 from qgis_plugin_tools.utils.typing_utils import require
+
+if TYPE_CHECKING:
+    # Exceptions are not in the QGIS 3 stubs
+    QgsProcessingException = Exception
+else:
+    from qgis.core import QgsProcessingException
 
 
 def locale_mismatch_message(macro: Macro) -> str | None:
@@ -51,3 +66,72 @@ def end_profiling() -> None:
     """End profiling the playback started with :func:`start_profiling`."""
     if Settings.profile_macros.get():
         require(QgsApplication.profiler()).end(Settings.profile_macro_group.get())
+
+
+def play_macro(macro: Macro, feedback: QgsProcessingFeedback) -> None:
+    """Play *macro* and block until the playback has ended.
+
+    Events are processed while waiting, so the function must be called from
+    the main thread. Canceling *feedback* stops the playback.
+
+    :raises QgsProcessingException: If the playback fails or is canceled.
+    """
+    if feedback.isCanceled():
+        raise QgsProcessingException(tr("Macro playback was canceled."))
+
+    player = MacroPlayer(Settings.speed.get())
+    loop = QEventLoop()
+    reports: list[MacroPlaybackReport] = []
+
+    def playback_ended(report: MacroPlaybackReport) -> None:
+        reports.append(report)
+        loop.quit()
+
+    player.playback_ended.connect(playback_ended)
+    feedback.canceled.connect(player.stop)
+    locale_message = locale_mismatch_message(macro)
+    if locale_message is not None:
+        feedback.pushWarning(locale_message)
+    start_profiling(macro)
+    try:
+        feedback.pushInfo(tr("Playing macro '{}'", macro.name or macro.uid))
+        player.play(macro)
+        # Playback of an empty macro ends before the loop is entered
+        if not reports:
+            loop.exec()
+    finally:
+        feedback.canceled.disconnect(player.stop)
+        # The loop also returns if e.g. the application quits
+        player.stop()
+        end_profiling()
+
+    if not reports:
+        raise QgsProcessingException(tr("Macro playback was canceled."))
+    report = reports[0]
+    if report.status == MacroPlaybackStatus.STOPPED:
+        raise QgsProcessingException(tr("Macro playback was canceled."))
+    if report.status == MacroPlaybackStatus.FAILURE:
+        error = report.error
+        details = getattr(error, "bar_msg", {}).get("details")
+        message = tr("Macro '{}' playback failed: {}", macro.name or macro.uid, error)
+        if details:
+            message = f"{message} {details}"
+        raise QgsProcessingException(message) from error
+
+
+def play_macros(macros: Sequence[Macro], feedback: QgsProcessingFeedback) -> None:
+    """Play *macros* one after another, reporting the progress to *feedback*.
+
+    :raises QgsProcessingException: If a playback fails or is canceled.
+    """
+    for step, macro in enumerate(macros):
+        feedback.setProgressText(
+            tr(
+                "Playing macro '{}' ({}/{})",
+                macro.name or macro.uid,
+                step + 1,
+                len(macros),
+            )
+        )
+        play_macro(macro, feedback)
+        feedback.setProgress(100 * (step + 1) / len(macros))

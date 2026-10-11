@@ -11,6 +11,7 @@
 - Macros and macro workflows are registered as parameterless processing algorithms, so they can be run from the Processing toolbox and used as steps of graphical models
 - Added `MacroPlayer.stop()` to stop an ongoing playback
 - Key events are replayed on the recorded widget, so typing works while another window (e.g. the model designer or a processing dialog) is active
+- Macros and workflows can be played on QGIS startup
 
 ## 1.0.1 - 2026-10-04
 

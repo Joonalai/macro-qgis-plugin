@@ -13,6 +13,7 @@ panel, adding a macro panel for recording and playing back macros.
    plugin
    processing_provider
    macro_panel
+   startup
    macro_model
    workflow_model
    settings_dialog

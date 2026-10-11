@@ -63,3 +63,12 @@ class EnvVariable:
 
 
 IS_DEVELOPMENT_MODE = EnvVariable("IS_DEVELOPMENT_MODE", default="no", mandatory=False)
+MACRO_STARTUP_FILE = EnvVariable("QGIS_MACRO_STARTUP_FILE", mandatory=False)
+MACRO_STARTUP_WORKFLOW = EnvVariable("QGIS_MACRO_STARTUP_WORKFLOW", mandatory=False)
+MACRO_STARTUP_MACRO = EnvVariable("QGIS_MACRO_STARTUP_MACRO", mandatory=False)
+MACRO_STARTUP_EXIT = EnvVariable(
+    "QGIS_MACRO_STARTUP_EXIT", default="no", mandatory=False
+)
+MACRO_STARTUP_DELAY_MS = EnvVariable(
+    "QGIS_MACRO_STARTUP_DELAY_MS", default="1000", mandatory=False
+)

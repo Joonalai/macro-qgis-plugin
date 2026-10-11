@@ -186,3 +186,19 @@ def test_macro_panel_registers_loaded_macros_as_algorithms(
     algorithms = plugin._macro_provider.algorithms()
     assert [alg.displayName() for alg in algorithms] == ["autosaved"]
     plugin.unload()
+
+
+def test_startup_macros_are_requested_on_plugin_load(
+    mocker: "MockerFixture",
+    mock_iface: "MagicMock",
+) -> None:
+    # Arrange
+    mock_play = mocker.patch.object(plugin_module.startup, "play_from_environment")
+    plugin = MacroPlugin()
+
+    # Act
+    plugin.initGui()
+
+    # Assert
+    mock_play.assert_called_once_with()
+    plugin.unload()

@@ -20,6 +20,7 @@ that allows users to record and playback simple macros.
 * Save macros and macro workflows to disk for later usage
 * Run macros and macro workflows as processing algorithms, for example as model steps
 * Optionally profile macros
+* Play a macro workflow automatically when QGIS starts
 
 ## Installation
 
@@ -78,6 +79,39 @@ use it.
 Because the steps have no parameters, model steps are not automatically run
 in a fixed order. Set the **Dependencies** of the model steps to run the macros
 one after another, or use a macro workflow as a single step.
+
+### Running Macros on Startup
+
+A macro workflow or a macro can be played automatically when QGIS starts.
+Playback begins after QGIS has finished loading. Use environment variables,
+for example in a `.bat` or `.sh` script that starts QGIS:
+
+```bat
+set QGIS_MACRO_STARTUP_FILE=C:\macros\macros.json
+set QGIS_MACRO_STARTUP_WORKFLOW=Digitize
+"C:\Program Files\QGIS 3.44\bin\qgis-bin.exe"
+```
+
+| Variable                      | Description                                     |
+|-------------------------------|-------------------------------------------------|
+| `QGIS_MACRO_STARTUP_FILE`     | Path of the macro file to play                  |
+| `QGIS_MACRO_STARTUP_WORKFLOW` | Name or uid of the workflow to play             |
+| `QGIS_MACRO_STARTUP_MACRO`    | Name or uid of a macro to play instead          |
+| `QGIS_MACRO_STARTUP_EXIT`     | `true` quits QGIS afterwards (1 on failure)     |
+| `QGIS_MACRO_STARTUP_DELAY_MS` | Wait after QGIS has loaded (default 1000)       |
+
+Or call the plugin from a
+[startup script](https://docs.qgis.org/latest/en/docs/pyqgis_developer_cookbook/intro.html#running-python-code-when-qgis-starts)
+(`startup.py`):
+
+```python
+from macro_plugin.startup import play_on_startup
+
+play_on_startup("/path/to/macros.json", workflow="Digitize")
+```
+
+Without a workflow or macro, the only workflow of the file is played.
+A file without workflows plays all of its macros in order.
 
 ### Using the Core Library
 
