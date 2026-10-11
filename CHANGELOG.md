@@ -12,6 +12,7 @@
 - Added `MacroPlayer.stop()` to stop an ongoing playback
 - Key events are replayed on the recorded widget, so typing works while another window (e.g. the model designer or a processing dialog) is active
 - Macros and workflows can be played on QGIS startup
+- Fixed clicks on the record button ending up in macros
 
 ## 1.0.1 - 2026-10-04
 
