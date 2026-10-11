@@ -21,7 +21,7 @@ import contextlib
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from qgis.PyQt.QtCore import QElapsedTimer, QEvent, QObject
+from qgis.PyQt.QtCore import QElapsedTimer, QEvent, QObject, QPoint
 from qgis.PyQt.QtGui import QKeyEvent, QMouseEvent, QWheelEvent
 from qgis.PyQt.QtWidgets import QApplication, QMenu, QWidget
 from qgis_plugin_tools.utils.typing_utils import require
@@ -90,8 +90,32 @@ class MacroRecorder(QObject):
         self._watched_menu_item: _WatchedMenuItem | None = None
 
     def add_widget_to_filter_events_out(self, widget: QWidget) -> None:
-        """Add a widget to filter events out from the recorded events."""
+        """Add a widget to filter events out from the recorded events.
+
+        Events of the child widgets of *widget* are filtered out as well.
+        """
         self._widgets_to_filter_events_out.append(widget)
+
+    def _is_filtered_out(
+        self, widget: QWidget, global_position: QPoint | None = None
+    ) -> bool:
+        """Check if the events of *widget* should not be recorded.
+
+        Qt passes the events that a widget ignores on to its parents, so an
+        event of a parent at *global_position* inside a filtered widget is
+        filtered out too.
+        """
+        for filtered in self._widgets_to_filter_events_out:
+            if filtered is widget or filtered.isAncestorOf(widget):
+                return True
+            if (
+                global_position is not None
+                and widget.isAncestorOf(filtered)
+                and filtered.isVisible()
+                and filtered.rect().contains(filtered.mapFromGlobal(global_position))
+            ):
+                return True
+        return False
 
     def is_recording(self) -> bool:
         """Check if the recorder is currently recording."""
@@ -140,14 +164,23 @@ class MacroRecorder(QObject):
         self.last_record_time = elapsed
 
         if isinstance(event, QMouseEvent):
-            if obj not in self._widgets_to_filter_events_out:
+            if not self._is_filtered_out(obj, utils.event_global_pos(event)):
                 self._record_mouse_event(event, obj, ms_since_last_event)
         elif isinstance(event, QKeyEvent) and event.type() in [
             QEvent.Type.KeyPress,
             QEvent.Type.KeyRelease,
         ]:
-            self._record_key_event(event, obj, ms_since_last_event)
-        elif isinstance(event, QWheelEvent) and event.type() == QEvent.Type.Wheel:
+            # Ignored key events are passed on from the focused widget
+            focus_widget = QApplication.focusWidget()
+            if not self._is_filtered_out(obj) and not (
+                focus_widget is not None and self._is_filtered_out(focus_widget)
+            ):
+                self._record_key_event(event, obj, ms_since_last_event)
+        elif (
+            isinstance(event, QWheelEvent)
+            and event.type() == QEvent.Type.Wheel
+            and not self._is_filtered_out(obj, utils.event_global_pos(event))
+        ):
             self._record_mouse_wheel_event(event, obj)
 
         return super().eventFilter(obj, event)

@@ -29,8 +29,9 @@ from qgis.gui import (
     QgsMapCanvas,
     QgsMapToolDigitizeFeature,
 )
-from qgis.PyQt.QtCore import QPoint, Qt
-from qgis.PyQt.QtWidgets import QMenu
+from qgis.PyQt.QtCore import QEvent, QPoint, QPointF, Qt
+from qgis.PyQt.QtGui import QMouseEvent
+from qgis.PyQt.QtWidgets import QMenu, QWidget
 from qgis_macros.macro import MacroMenuActionEvent, MacroMouseEvent, Position
 from qgis_macros.macro_recorder import MacroRecorder
 from qgis_macros.utils import enum_value
@@ -342,3 +343,61 @@ def test_macro_recorder_should_keep_context_menu_click(
     assert release.button == enum_value(Qt.MouseButton.RightButton)
     assert isinstance(menu_action, MacroMenuActionEvent)
     assert menu_action.action_path == ["Styles", "fast"]
+
+
+def test_macro_recorder_should_not_record_events_of_filtered_widget_children(
+    dialog: Dialog,
+    macro_recorder: MacroRecorder,
+    dialog_widget_positions: dict[str, WidgetInfo],
+    qtbot: "QtBot",
+):
+    # Arrange
+    macro_recorder.add_widget_to_filter_events_out(dialog)
+    line_edit = dialog_widget_positions["line_edit"]
+
+    # Act
+    qtbot.mouseClick(
+        dialog.line_edit,
+        Qt.MouseButton.LeftButton,
+        pos=line_edit.position.local_point,
+    )
+    qtbot.keyClick(dialog.line_edit, Qt.Key.Key_A)
+    macro = macro_recorder.stop_recording()
+
+    # Assert
+    assert dialog.line_edit.text() == "a"
+    assert macro.events == []
+
+
+def _send_mouse_move(recorder: MacroRecorder, widget: QWidget, target: QWidget) -> None:
+    """Send a mouse move at the center of *target* as if delivered to *widget*."""
+    center = target.rect().center()
+    event = QMouseEvent(
+        QEvent.Type.MouseMove,
+        QPointF(target.mapTo(widget, center)),
+        QPointF(target.mapToGlobal(center)),
+        Qt.MouseButton.NoButton,
+        Qt.MouseButton.NoButton,
+        Qt.KeyboardModifier.NoModifier,
+    )
+    recorder.eventFilter(widget, event)
+
+
+def test_macro_recorder_should_not_record_events_passed_on_from_filtered_widget(
+    dialog: Dialog,
+    macro_recorder: MacroRecorder,
+):
+    # Arrange
+    # Qt passes the mouse moves that a button ignores on to its parents
+    macro_recorder.add_widget_to_filter_events_out(dialog.button)
+
+    # Act
+    _send_mouse_move(macro_recorder, dialog, dialog.button)
+    filtered_macro = macro_recorder.stop_recording()
+    macro_recorder.start_recording()
+    _send_mouse_move(macro_recorder, dialog, dialog.button2)
+    macro = macro_recorder.stop_recording()
+
+    # Assert
+    assert filtered_macro.events == []
+    assert len(macro.events) == 1
