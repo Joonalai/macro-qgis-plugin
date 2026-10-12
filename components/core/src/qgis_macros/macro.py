@@ -59,7 +59,7 @@ from qgis_plugin_tools.utils.typing_utils import require
 
 from qgis_macros import utils, widget_lookup
 from qgis_macros.constants import ASCII_KEY_LIMIT
-from qgis_macros.exceptions import MenuActionNotFoundError
+from qgis_macros.exceptions import MenuActionNotFoundError, WidgetNotFoundError
 from qgis_macros.utils import enum_value
 
 if TYPE_CHECKING:
@@ -391,8 +391,16 @@ class MacroKeyEvent(BaseMacroEvent):  # noqa: PLW1641
         reaches the widget even if another window is active, e.g. the model
         designer or a processing dialog. Falls back to the focused widget if
         the path cannot be resolved to a visible and enabled widget.
+
+        Raises:
+            WidgetNotFoundError: If there is no widget to send the event to.
+
         """
         widget = self._get_target_widget()
+        if widget is None:
+            raise WidgetNotFoundError(
+                self.widget_spec.widget_class, self.widget_spec.text
+            )
         QgsApplication.processEvents()
         schedule_next()
         key = Qt.Key(self.key)
@@ -407,12 +415,11 @@ class MacroKeyEvent(BaseMacroEvent):  # noqa: PLW1641
     def _get_target_widget(self) -> QWidget | None:
         focus_widget = QApplication.focusWidget()
         # Popups (e.g. menus) grab the keyboard and are not resolvable by path
-        if (
-            self.widget_path is None
-            or not self.widget_path.nodes
-            or QApplication.activePopupWidget() is not None
-        ):
+        if self.widget_path is None or QApplication.activePopupWidget() is not None:
             return focus_widget
+        if not self.widget_path.nodes:
+            # The window gets the key events that no widget in it has focus for
+            return focus_widget or self.widget_path.find_widget()
         if focus_widget is not None and widget_lookup.path_leads_to(
             self.widget_path, focus_widget
         ):

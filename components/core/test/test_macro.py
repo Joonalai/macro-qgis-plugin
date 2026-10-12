@@ -15,19 +15,28 @@
 #
 #  You should have received a copy of the GNU General Public License
 #  along with macro-qgis-plugin. If not, see <https://www.gnu.org/licenses/>.
+from typing import TYPE_CHECKING
+
 import pytest
+from macro_test_utils.utils import Dialog
 from qgis.gui import QgsMapCanvas
-from qgis.PyQt.QtCore import QPoint
-from qgis.PyQt.QtWidgets import QWidget
+from qgis.PyQt.QtCore import QPoint, Qt
+from qgis.PyQt.QtWidgets import QApplication, QWidget
+from qgis_macros.exceptions import WidgetNotFoundError
 from qgis_macros.macro import (
     Macro,
+    MacroKeyEvent,
     MacroMenuActionEvent,
     MacroMouseEvent,
     Position,
     WidgetPath,
     WidgetSpec,
 )
+from qgis_macros.utils import enum_value
 from qgis_plugin_tools.utils.typing_utils import require
+
+if TYPE_CHECKING:
+    from pytest_mock import MockerFixture
 
 pytest_plugins = [
     "macro_test_utils.macro_fixture",
@@ -177,3 +186,30 @@ def test_position_without_canvas_size_is_not_moved(qgis_canvas: QgsMapCanvas) ->
     assert _canvas_click((10, 10)).corrected_position(
         QWidget(), position
     ).local_point == QPoint(20, 30)
+
+
+def test_key_event_without_focus_is_sent_to_its_window(
+    dialog: Dialog, mocker: "MockerFixture"
+) -> None:
+    mocker.patch.object(QApplication, "focusWidget", return_value=None)
+    qtest = mocker.patch("qgis_macros.macro._qtest")
+    event = MacroKeyEvent(
+        WidgetSpec.create(dialog),
+        widget_path=WidgetPath.create(dialog),
+        key=enum_value(Qt.Key.Key_Return),
+        is_release=True,
+    )
+
+    event.perform_event_action(lambda: None)
+
+    assert qtest.keyRelease.call_args.args[0] is dialog
+
+
+def test_key_event_without_target_fails(mocker: "MockerFixture") -> None:
+    mocker.patch.object(QApplication, "focusWidget", return_value=None)
+    qtest = mocker.patch("qgis_macros.macro._qtest")
+    event = MacroKeyEvent(WidgetSpec("QLineEdit"), key=enum_value(Qt.Key.Key_A))
+
+    with pytest.raises(WidgetNotFoundError):
+        event.perform_event_action(lambda: None)
+    qtest.keyPress.assert_not_called()
