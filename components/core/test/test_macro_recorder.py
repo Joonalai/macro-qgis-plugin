@@ -32,7 +32,12 @@ from qgis.gui import (
 from qgis.PyQt.QtCore import QEvent, QPoint, QPointF, Qt
 from qgis.PyQt.QtGui import QMouseEvent
 from qgis.PyQt.QtWidgets import QMenu, QWidget
-from qgis_macros.macro import MacroMenuActionEvent, MacroMouseEvent, Position
+from qgis_macros.macro import (
+    MacroMenuActionEvent,
+    MacroMouseEvent,
+    MacroMouseMoveEvent,
+    Position,
+)
 from qgis_macros.macro_recorder import MacroRecorder
 from qgis_macros.utils import enum_value
 from qgis_plugin_tools.utils.typing_utils import require
@@ -401,3 +406,34 @@ def test_macro_recorder_should_not_record_events_passed_on_from_filtered_widget(
     # Assert
     assert filtered_macro.events == []
     assert len(macro.events) == 1
+
+
+def test_macro_recorder_records_movement_relative_to_its_first_widget(
+    dialog: Dialog,
+) -> None:
+    recorder = MacroRecorder(filter_out_mouse_movements=False)
+
+    def move(widget: QWidget, local_point: QPoint) -> None:
+        event = QMouseEvent(
+            QEvent.Type.MouseMove,
+            QPointF(local_point),
+            QPointF(widget.mapToGlobal(local_point)),
+            Qt.MouseButton.NoButton,
+            Qt.MouseButton.NoButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        recorder.eventFilter(widget, event)
+
+    recorder.start_recording()
+    move(dialog.button, QPoint(5, 5))
+    move(dialog.button2, QPoint(6, 7))
+    macro = recorder.stop_recording()
+
+    [event] = macro.events
+    assert isinstance(event, MacroMouseMoveEvent)
+    assert event.widget_spec.text == dialog.button.text()
+    on_button2 = dialog.button2.mapToGlobal(QPoint(6, 7))
+    assert event.positions == [
+        Position.from_points(QPoint(5, 5), dialog.button.mapToGlobal(QPoint(5, 5))),
+        Position.from_points(dialog.button.mapFromGlobal(on_button2), on_button2),
+    ]
