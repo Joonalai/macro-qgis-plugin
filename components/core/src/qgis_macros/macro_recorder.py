@@ -130,6 +130,7 @@ class MacroRecorder(QObject):
         self._menu_mouse_events.clear()
         self._menu_pressed_buttons.clear()
         self._recording = True
+        self.last_record_time = 0
         self._timer.restart()
         require(QApplication.instance()).installEventFilter(self)
 
@@ -164,7 +165,8 @@ class MacroRecorder(QObject):
 
         elapsed = self._timer.elapsed()
         ms_since_last_event = elapsed - self.last_record_time
-        self.last_record_time = elapsed
+        event_count = len(self._recorded_events)
+        last_event = self._recorded_events[-1] if self._recorded_events else None
 
         if isinstance(event, QMouseEvent):
             if not self._is_filtered_out(obj, utils.event_global_pos(event)):
@@ -186,6 +188,12 @@ class MacroRecorder(QObject):
         ):
             self._record_mouse_wheel_event(event, obj)
 
+        # The time is measured from the previous recorded event, not from any
+        # event, e.g. a paint event
+        if len(self._recorded_events) != event_count or (
+            self._recorded_events and self._recorded_events[-1] is not last_event
+        ):
+            self.last_record_time = elapsed
         return super().eventFilter(obj, event)
 
     def _record_mouse_event(
