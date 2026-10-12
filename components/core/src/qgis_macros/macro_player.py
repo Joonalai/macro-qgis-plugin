@@ -175,7 +175,7 @@ class MacroPlayer(QObject):
     def _smooth_steps(event: MacroMouseMoveEvent) -> list[MacroMouseMoveEvent]:
         """Split a mouse movement into steps of one position each.
 
-        The steps follow the recorded path a few pixels apart. The last step
+        The steps follow the recorded path a few pixels apart. The first step
         keeps the recorded delay of the movement.
         """
         positions = Position.densify(event.positions, SMOOTH_STEP_PX)
@@ -185,11 +185,9 @@ class MacroPlayer(QObject):
             dataclasses.replace(
                 event,
                 positions=[position],
-                ms_since_last_event=(
-                    event.ms_since_last_event
-                    if i == len(positions) - 1
-                    else SMOOTH_STEP_MS
-                ),
+                ms_since_last_event=event.ms_since_last_event
+                if i == 0
+                else SMOOTH_STEP_MS,
             )
             for i, position in enumerate(positions)
         ]
@@ -236,8 +234,12 @@ class MacroPlayer(QObject):
             # the playback was stopped while the event was being prepared
             if playback_id != self._playback_id:
                 raise _PlaybackStoppedError
+            # The delay of an event is the time before it was recorded
+            next_delay = (
+                self._event_queue[0].ms_since_last_event if self._event_queue else 0
+            )
             QTimer.singleShot(
-                self._wait_time(macro_event.ms_since_last_event),
+                self._wait_time(next_delay),
                 partial(self._play_next_event, playback_id),
             )
 
