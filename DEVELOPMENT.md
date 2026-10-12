@@ -35,6 +35,11 @@ prek install
 pytest
 ```
 
+Tests run in parallel with pytest-xdist when the QGIS GUI is disabled with
+`pytest --qgis_disable_gui`. Individual tests (`path::test_name`) and tests with
+the GUI run in one process, so they can be debugged. Use `-n 0` to run everything
+in one process.
+
 ## Running QGIS in development mode
 
 Before starting development, create a `.env` file by copying `.env.example` and update

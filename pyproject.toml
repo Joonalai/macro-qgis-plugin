@@ -40,6 +40,7 @@ dev = [
   "pytest-mock",
   "pytest-subtests",
   "pytest-timeout",
+  "pytest-xdist>=3.8.0",
   # Tools
   "qgis-plugin-dev-tools>=0.13.2",
   "copier",
@@ -169,7 +170,7 @@ division-by-zero = "ignore"
 
 [tool.pytest.ini_options]
 testpaths = ["components/core/test", "components/plugin/test"]
-addopts = "--import-mode=importlib"
+addopts = "--import-mode=importlib -p macro_test_utils.xdist_utils -n auto"
 timeout = 1000
 log_cli = true
 log_cli_level = "INFO"
