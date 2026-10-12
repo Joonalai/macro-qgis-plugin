@@ -1,6 +1,6 @@
 # CHANGELOG
 
-## Unreleased
+## 1.1.0 - 2026-10-13
 
 - Relicensed under GPL-2.0-or-later
 - Updated from qgis-plugin-copier-template v0.8.1 and switched type checking to ty
