@@ -2,7 +2,7 @@
 
 ![tests](https://github.com/Joonalai/macro-qgis-plugin/workflows/Tests/badge.svg)
 [![docs](https://readthedocs.org/projects/macro-qgis-plugin/badge/?version=latest)](https://macro-qgis-plugin.readthedocs.io/en/latest/)
-[![GPLv3 license](https://img.shields.io/badge/License-GPLv3-blue.svg)](http://perso.crans.org/besson/LICENSE.html)
+[![GPL-2.0-or-later license](https://img.shields.io/badge/License-GPL--2.0--or--later-blue.svg)](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html)
 [![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![prek](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/j178/prek/master/docs/assets/badge-v0.json)](https://github.com/j178/prek)
@@ -163,6 +163,6 @@ These awesome plugins are used as an inspiration for the plugin structure:
 
 ## License & copyright
 
-Licensed under GNU GPL v3.0.
+Licensed under GNU GPL v2.0 or later.
 
 Copyright (C) 2025-2026 macro-qgis-plugin contributors.

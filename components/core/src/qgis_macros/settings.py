@@ -5,7 +5,7 @@
 #
 #  macro-qgis-plugin is free software: you can redistribute it and/or
 #  modify it under the terms of the GNU General Public License as published
-#  by the Free Software Foundation, either version 3 of the License, or
+#  by the Free Software Foundation, either version 2 of the License, or
 #  (at your option) any later version.
 #
 #  macro-qgis-plugin is distributed in the hope that it will be
@@ -48,7 +48,7 @@ from qgis_macros.exceptions import InvalidSettingValueError
 
 LOGGER = logging.getLogger(__name__)
 
-# This module is heavily inspired by profiler-qgis-plugin (GPLv3).
+# This module is heavily inspired by profiler-qgis-plugin (code by the same author).
 # TODO: move to a common library  # noqa: TD003
 
 

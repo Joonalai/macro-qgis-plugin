@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Relicensed under GPL-2.0-or-later
 - Updated from qgis-plugin-copier-template v0.8.1 and switched type checking to ty
 - Fixed recording wheel events on Qt 6
 - Fixed map canvas macros failing when the window has moved or is covered
