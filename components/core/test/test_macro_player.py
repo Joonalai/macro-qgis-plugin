@@ -238,6 +238,18 @@ def test_macro_player_should_skip_action_of_event_when_stopped_during_it(
     assert actions == ["first"]
 
 
+def test_macro_player_wait_time_should_scale_with_macro_speed(
+    macro_player: MacroPlayer,
+    qtbot: "QtBot",
+):
+    with qtbot.waitSignal(macro_player.playback_ended, timeout=TIMEOUT):
+        macro_player.play(Macro([], speed=2.0))
+
+    assert macro_player._wait_time(1000) == 500 + 15
+    macro_player.set_speed(2.0)
+    assert macro_player._wait_time(1000) == 250 + 15
+
+
 def test_macro_player_stop_should_do_nothing_if_not_playing(
     macro_player: MacroPlayer,
     qtbot: "QtBot",
