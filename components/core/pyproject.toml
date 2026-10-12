@@ -3,7 +3,7 @@ name = "macro-qgis-core"
 version = "1.0.1.post0"
 description = "Core library for recording and playing back QGIS macros."
 readme = "README.md"
-license = "GPL-3.0-only"
+license = "GPL-2.0-or-later"
 requires-python = ">=3.12"
 classifiers = [
   "Programming Language :: Python",
