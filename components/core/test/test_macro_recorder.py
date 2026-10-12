@@ -30,7 +30,7 @@ from qgis.gui import (
     QgsMapToolDigitizeFeature,
 )
 from qgis.PyQt.QtCore import QEvent, QPoint, QPointF, Qt
-from qgis.PyQt.QtGui import QKeyEvent, QMouseEvent
+from qgis.PyQt.QtGui import QKeyEvent, QMouseEvent, QWheelEvent
 from qgis.PyQt.QtWidgets import QMenu, QWidget
 from qgis_macros.macro import (
     MacroKeyEvent,
@@ -490,3 +490,31 @@ def test_macro_recorder_records_the_delay_before_a_movement(
 
     [movement] = macro.events
     assert movement.ms_since_last_event >= 250
+
+
+def test_macro_recorder_records_a_wheel_event_passed_on_to_a_scroll_bar_once(
+    dialog: Dialog,
+) -> None:
+    recorder = MacroRecorder(filter_out_mouse_movements=False)
+    dialog.list_widget.addItems([f"Item {i}" for i in range(100)])
+    viewport = require(dialog.list_widget.viewport())
+    local_point = viewport.rect().center()
+
+    recorder.start_recording()
+    for _ in range(2):
+        event = QWheelEvent(
+            QPointF(local_point),
+            QPointF(viewport.mapToGlobal(local_point)),
+            QPoint(0, -120),
+            QPoint(0, -120),
+            Qt.MouseButton.NoButton,
+            Qt.KeyboardModifier.NoModifier,
+            Qt.ScrollPhase.NoScrollPhase,
+            False,
+        )
+        # Qt delivers the same event to the viewport and then the scroll bar
+        recorder.eventFilter(viewport, event)
+        recorder.eventFilter(require(dialog.list_widget.verticalScrollBar()), event)
+    macro = recorder.stop_recording()
+
+    assert [type(e).__name__ for e in macro.events] == ["MacroWheelEvent"] * 2
