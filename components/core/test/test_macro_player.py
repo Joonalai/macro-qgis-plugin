@@ -26,9 +26,9 @@ from typing import TYPE_CHECKING, Any
 import pytest
 from macro_test_utils import macro_utils
 from macro_test_utils.utils import WidgetEventListener, WidgetInfo
-from qgis.core import Qgis, QgsFeature
+from qgis.core import Qgis, QgsApplication, QgsFeature, QgsTask
 from qgis.gui import QgsMapToolDigitizeFeature
-from qgis.PyQt.QtCore import QPoint, QRect, QSize, Qt, QTimer
+from qgis.PyQt.QtCore import QEventLoop, QPoint, QRect, QSize, Qt, QTimer
 from qgis.PyQt.QtWidgets import (
     QApplication,
     QDialog,
@@ -969,3 +969,82 @@ def test_macro_player_waits_the_delay_of_an_event_before_playing_it(
     assert actions == ["first", "second", "third"]
     assert times["second"] - times["first"] >= 0.35
     assert times["third"] - times["second"] < 0.3
+
+
+@dataclass
+class _AlgorithmRunEvent:
+    """Event that runs a task which plays a macro and then keeps running."""
+
+    actions: list[str]
+    inner_player: MacroPlayer
+    inner: Macro
+    tasks: list[QgsTask]
+    ms_since_last_event: int = 0
+
+    def perform_event_action(self, schedule_next: Callable[[], None]) -> None:
+        schedule_next()
+        task = _SleepTask(self.actions)
+        self.tasks.append(task)
+        require(QgsApplication.taskManager()).addTask(task)
+        self.inner_player.play(self.inner)
+
+
+class _SleepTask(QgsTask):
+    def __init__(self, actions: list[str]) -> None:
+        super().__init__("sleep")
+        self.actions = actions
+
+    def run(self) -> bool:
+        time.sleep(0.5)
+        return True
+
+    def finished(self, result: bool) -> None:  # noqa: ARG002
+        self.actions.append("task finished")
+
+
+def test_macro_player_continues_after_the_tasks_of_a_playback_it_started(
+    macro_player: MacroPlayer,
+    qtbot: "QtBot",
+):
+    # E.g. a model plays a macro in a task, and the task still runs after it
+    actions: list[str] = []
+    tasks: list[QgsTask] = []
+    inner = Macro(events=[_RecordingEvent("inner", actions)])
+    outer = Macro(
+        events=[
+            _AlgorithmRunEvent(actions, MacroPlayer(), inner, tasks),
+            _RecordingEvent("close", actions),
+        ]
+    )
+
+    with qtbot.waitSignal(macro_player.playback_ended, timeout=TIMEOUT):
+        macro_player.play(outer)
+
+    assert actions == ["inner", "task finished", "close"]
+
+
+def test_macro_player_plays_events_in_a_modal_dialog_opened_by_an_event(
+    macro_player: MacroPlayer,
+    qtbot: "QtBot",
+):
+    # The event that opens a modal dialog returns when the next event closes it
+    actions: list[str] = []
+    loop = QEventLoop()
+
+    class _OpenDialog(_RecordingEvent):
+        def perform_event_action(self, schedule_next: Callable[[], None]) -> None:
+            schedule_next()
+            loop.exec()
+            actions.append("dialog closed")
+
+    outer = Macro(
+        events=[
+            _OpenDialog("open", actions),
+            _RecordingEvent("close", actions, before=loop.quit),
+        ]
+    )
+
+    with qtbot.waitSignal(macro_player.playback_ended, timeout=TIMEOUT):
+        macro_player.play(outer)
+
+    assert actions == ["close", "dialog closed"]

@@ -36,6 +36,7 @@ from weakref import WeakSet
 
 from qgis.core import QgsApplication
 from qgis.PyQt.QtCore import QElapsedTimer, QObject, QTimer, pyqtSignal
+from qgis_plugin_tools.utils.typing_utils import require
 
 from qgis_macros.exceptions import MacroPlaybackEndedError
 from qgis_macros.macro import Macro, MacroEvent, MacroMouseMoveEvent, Position
@@ -101,6 +102,8 @@ class MacroPlayer(QObject):
         self._smooth_mouse_movement = smooth_mouse_movement
         self._smooth = False
         self._started = 0
+        # Whether the player waited for a playback started by its events
+        self._waited_for_playback = False
         MacroPlayer._players.add(self)
         self._speed = playback_speed
         # The speed of the macro being played, relative to the player speed
@@ -139,6 +142,7 @@ class MacroPlayer(QObject):
         self._playing = True
         MacroPlayer._playback_count += 1
         self._started = MacroPlayer._playback_count
+        self._waited_for_playback = False
         self._macro_speed = macro.speed
         self._smooth = (
             Settings.smooth_mouse_movement.get()
@@ -205,11 +209,32 @@ class MacroPlayer(QObject):
             for player in list(MacroPlayer._players)
         )
 
+    def _waiting_for_tasks(self) -> bool:
+        """Return whether tasks that a playback ran in may still be running.
+
+        E.g. a model plays a macro workflow in a task, and the task loads the
+        results of the model after the workflow.
+        """
+        return (
+            self._waited_for_playback
+            and require(QgsApplication.taskManager()).countActiveTasks() > 0
+        )
+
+    def _must_wait(self) -> bool:
+        """Return whether a playback started by the events must end first."""
+        if self._nested_playback_running():
+            self._waited_for_playback = True
+            return True
+        if self._waiting_for_tasks():
+            return True
+        self._waited_for_playback = False
+        return False
+
     def _play_next_event(self, playback_id: int) -> None:
         if playback_id != self._playback_id:
             return
 
-        if self._nested_playback_running():
+        if self._must_wait():
             QTimer.singleShot(
                 NESTED_PLAYBACK_POLL_MS, partial(self._play_next_event, playback_id)
             )
