@@ -14,6 +14,9 @@
 - Key events are replayed on the recorded widget, so typing works while another window (e.g. the model designer or a processing dialog) is active
 - Macros and workflows can be played on QGIS startup
 - Fixed clicks on the record button ending up in macros
+- Added an option to move the mouse smoothly during playback
+- Macros wait for the workflows they start, e.g. from processing
+- Fixed macro speed, recorded delays, duplicate wheel events, hidden toolbar buttons, resized map canvas and unfocused key events in playback
 
 ## 1.0.1 - 2026-10-04
 
