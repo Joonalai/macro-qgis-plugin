@@ -186,7 +186,7 @@ class MacroRecorder(QObject):
             and event.type() == QEvent.Type.Wheel
             and not self._is_filtered_out(obj, utils.event_global_pos(event))
         ):
-            self._record_mouse_wheel_event(event, obj)
+            self._record_mouse_wheel_event(event, obj, ms_since_last_event)
 
         # The time is measured from the previous recorded event, not from any
         # event, e.g. a paint event
@@ -210,7 +210,7 @@ class MacroRecorder(QObject):
         elif event.type() == QEvent.Type.MouseButtonDblClick:
             self._record_mouse_button_double_click_event(event, widget, elapsed)
         elif event.type() == QEvent.Type.MouseMove:
-            self._record_mouse_move_event(event, widget)
+            self._record_mouse_move_event(event, widget, elapsed)
 
     def _get_filtered_events(self) -> list[MacroEvent]:
         filtered_events: list[MacroEvent] = []
@@ -418,8 +418,14 @@ class MacroRecorder(QObject):
             )
         )
 
-    def _record_mouse_move_event(self, event: QMouseEvent, widget: QWidget) -> None:
-        """Record mouse movement events."""
+    def _record_mouse_move_event(
+        self, event: QMouseEvent, widget: QWidget, elapsed: int
+    ) -> None:
+        """Record mouse movement events.
+
+        A movement starts after *elapsed* milliseconds and the positions of
+        the cursor are added to it until another event is recorded.
+        """
         last_event = self._recorded_events[-1] if self._recorded_events else None
         if (
             isinstance(last_event, MacroMouseMoveEvent)
@@ -430,7 +436,7 @@ class MacroRecorder(QObject):
             self._move_widget = widget
             move_event = MacroMouseMoveEvent(
                 widget_spec=WidgetSpec.create(widget),
-                ms_since_last_event=0,
+                ms_since_last_event=elapsed,
                 positions=[Position.from_event(event)],
                 buttons=enum_value(event.buttons()),
                 modifiers=enum_value(event.modifiers()),
@@ -457,14 +463,16 @@ class MacroRecorder(QObject):
             return None
         return Position.from_points(local_point, global_point)
 
-    def _record_mouse_wheel_event(self, event: QWheelEvent, widget: QWidget) -> None:
+    def _record_mouse_wheel_event(
+        self, event: QWheelEvent, widget: QWidget, elapsed: int
+    ) -> None:
         """Record mouse wheel events."""
         # Qt 6 wheel events have no source
         source = getattr(event, "source", None)
         self._recorded_events.append(
             MacroWheelEvent(
                 WidgetSpec.create(widget),
-                ms_since_last_event=0,
+                ms_since_last_event=elapsed,
                 position=Position.from_event(event),
                 delta=event.angleDelta().y(),
                 phase=enum_value(event.phase()),
