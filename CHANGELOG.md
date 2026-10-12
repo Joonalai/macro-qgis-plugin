@@ -1,5 +1,7 @@
 # CHANGELOG
 
+## Unreleased
+
 ## 1.1.0 - 2026-10-13
 
 - Relicensed under GPL-2.0-or-later
