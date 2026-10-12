@@ -463,3 +463,30 @@ def test_macro_recorder_measures_time_from_the_previous_recorded_event(
     assert isinstance(second, MacroKeyEvent)
     assert second.key == enum_value(Qt.Key.Key_B)
     assert second.ms_since_last_event >= 250
+
+
+def test_macro_recorder_records_the_delay_before_a_movement(
+    dialog: Dialog, qtbot: "QtBot"
+) -> None:
+    recorder = MacroRecorder(filter_out_mouse_movements=False)
+
+    def move(local_point: QPoint) -> None:
+        event = QMouseEvent(
+            QEvent.Type.MouseMove,
+            QPointF(local_point),
+            QPointF(dialog.button.mapToGlobal(local_point)),
+            Qt.MouseButton.NoButton,
+            Qt.MouseButton.NoButton,
+            Qt.KeyboardModifier.NoModifier,
+        )
+        recorder.eventFilter(dialog.button, event)
+
+    recorder.start_recording()
+    qtbot.wait(300)
+    move(QPoint(5, 5))
+    qtbot.wait(300)
+    move(QPoint(6, 6))
+    macro = recorder.stop_recording()
+
+    [movement] = macro.events
+    assert movement.ms_since_last_event >= 250
