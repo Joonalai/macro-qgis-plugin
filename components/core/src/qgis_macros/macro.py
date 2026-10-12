@@ -145,6 +145,8 @@ class WidgetPath:
     nodes: list[WidgetPathNode]
     is_map_canvas: bool = False
     window_object_name: str = ""
+    #: Size of the map canvas when the event was recorded on it.
+    canvas_size: tuple[int, int] | None = None
 
     @staticmethod
     def create(widget: QWidget) -> "WidgetPath | None":
@@ -166,6 +168,7 @@ class WidgetPath:
                     nodes,
                     is_map_canvas,
                     current.objectName(),
+                    (widget.width(), widget.height()) if is_map_canvas else None,
                 )
             parent = current.parentWidget()
             if parent is not None:
@@ -341,8 +344,24 @@ class BaseMacroEvent(ABC):  # noqa: PLW1641
     ) -> tuple[QWidget, Position]:
         """Return the target widget and a screen-corrected position."""
         widget = self.get_widget(position)
-        corrected_position = position.widget_corrected_position(widget)
-        return widget, corrected_position
+        return widget, self.corrected_position(widget, position)
+
+    def corrected_position(self, widget: QWidget, position: Position) -> Position:
+        """Return *position* corrected for the current screen location of *widget*.
+
+        If the map canvas has another size than when the event was recorded,
+        the position keeps its offset from the center of the canvas. The map
+        stays centered when the window is resized, so the position points at
+        the same place in the view.
+        """
+        canvas_size = self.widget_path.canvas_size if self.widget_path else None
+        if canvas_size is None or not utils.is_object_map_canvas(widget):
+            return position.widget_corrected_position(widget)
+        local_point = QPoint(
+            position.local_position[0] + round((widget.width() - canvas_size[0]) / 2),
+            position.local_position[1] + round((widget.height() - canvas_size[1]) / 2),
+        )
+        return Position.from_points(local_point, widget.mapToGlobal(local_point))
 
     @abstractmethod
     def perform_event_action(self, schedule_next: Callable[[], None]) -> None:
@@ -478,7 +497,7 @@ class MacroMouseMoveEvent(BaseMacroEvent):  # noqa: PLW1641
         widget = self.get_widget(self.positions[0])
 
         for position in self.positions:
-            corrected_position = position.widget_corrected_position(widget)
+            corrected_position = self.corrected_position(widget, position)
             self.move_cursor(corrected_position.global_point)
             if (
                 utils.is_object_map_canvas(widget)
@@ -497,7 +516,7 @@ class MacroMouseMoveEvent(BaseMacroEvent):  # noqa: PLW1641
         widget = self.get_widget(self.positions[0])
 
         for position in self.positions:
-            self._post_move_event(widget, position.widget_corrected_position(widget))
+            self._post_move_event(widget, self.corrected_position(widget, position))
 
     def _post_move_event(self, widget: QWidget, corrected_position: Position) -> None:
         """Post a mouse move event at *corrected_position* to *widget*."""
@@ -828,6 +847,9 @@ class Macro:
         for event in self.events:
             class_name = event.__class__.__name__
             serialized_event = dataclasses.asdict(event)
+            widget_path = serialized_event.get("widget_path")
+            if widget_path is not None and widget_path["canvas_size"] is None:
+                del widget_path["canvas_size"]
             serialized_event["type"] = class_name
             events.append(serialized_event)
         return data
@@ -874,6 +896,11 @@ class Macro:
                     nodes=nodes,
                     is_map_canvas=widget_path_data.get("is_map_canvas", False),
                     window_object_name=widget_path_data.get("window_object_name", ""),
+                    canvas_size=(
+                        tuple(widget_path_data["canvas_size"])
+                        if widget_path_data.get("canvas_size") is not None
+                        else None
+                    ),
                 )
 
             event_cls = globals()[class_name]
