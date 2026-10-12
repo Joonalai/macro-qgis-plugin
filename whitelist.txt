@@ -14,7 +14,9 @@ contextvars
 crs
 csv
 dataframe
+densify
 dropdown
+dx
 epsg
 eq
 fid
@@ -39,6 +41,7 @@ globals
 gpkg
 hookimpl
 hookwrapper
+hypot
 i18n
 iface
 isdeleted

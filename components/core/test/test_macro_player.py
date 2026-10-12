@@ -16,6 +16,8 @@
 #  You should have received a copy of the GNU General Public License
 #  along with macro-qgis-plugin. If not, see <https://www.gnu.org/licenses/>.
 
+import itertools
+import math
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
@@ -43,13 +45,17 @@ from qgis_macros.macro import (
     MacroMouseEvent,
     MacroMouseMoveEvent,
     MacroWheelEvent,
+    Position,
     WidgetSpec,
 )
 from qgis_macros.macro_player import (
+    SMOOTH_STEP_MS,
+    SMOOTH_STEP_PX,
     MacroPlaybackReport,
     MacroPlaybackStatus,
     MacroPlayer,
 )
+from qgis_macros.settings import Settings
 from qgis_macros.utils import enum_value
 from qgis_plugin_tools.utils.typing_utils import require
 
@@ -248,6 +254,50 @@ def test_macro_player_wait_time_should_scale_with_macro_speed(
     assert macro_player._wait_time(1000) == 500 + 15
     macro_player.set_speed(2.0)
     assert macro_player._wait_time(1000) == 250 + 15
+
+
+def test_smooth_steps_follow_the_path_a_few_pixels_apart():
+    event = MacroMouseMoveEvent(
+        widget_spec=WidgetSpec("QWidget", ""),
+        ms_since_last_event=300,
+        positions=[Position((0, 0), (100, 100)), Position((60, 0), (160, 100))],
+    )
+
+    steps = MacroPlayer._smooth_steps(event)
+
+    assert len(steps) == 1 + math.ceil(60 / SMOOTH_STEP_PX)
+    assert all(len(step.positions) == 1 for step in steps)
+    assert steps[0].positions == [event.positions[0]]
+    assert steps[-1].positions == [event.positions[-1]]
+    assert [step.ms_since_last_event for step in steps[:-1]] == [SMOOTH_STEP_MS] * (
+        len(steps) - 1
+    )
+    # The movement keeps its recorded delay
+    assert steps[-1].ms_since_last_event == 300
+    xs = [step.positions[0].global_position[0] for step in steps]
+    assert xs == sorted(xs)
+    assert max(b - a for a, b in itertools.pairwise(xs)) <= SMOOTH_STEP_PX
+
+
+@pytest.mark.parametrize(
+    ("argument", "setting", "expected"),
+    [(None, True, True), (None, False, False), (False, True, False)],
+    ids=["setting on", "setting off", "argument overrides"],
+)
+def test_macro_player_smooth_mouse_movement_option(
+    mocker: "MockerFixture",
+    qtbot: "QtBot",
+    argument: bool | None,
+    setting: bool,
+    expected: bool,
+):
+    mocker.patch.object(Settings.smooth_mouse_movement, "get", return_value=setting)
+    player = MacroPlayer(smooth_mouse_movement=argument)
+
+    with qtbot.waitSignal(player.playback_ended, timeout=TIMEOUT):
+        player.play(Macro([]))
+
+    assert player._smooth == expected
 
 
 def test_macro_player_stop_should_do_nothing_if_not_playing(
