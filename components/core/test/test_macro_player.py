@@ -18,6 +18,7 @@
 
 import itertools
 import math
+import time
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
@@ -228,9 +229,9 @@ def test_macro_player_should_not_play_events_scheduled_before_stop(
     )
     second = Macro(
         events=[
-            # The player waits the delay of the played event before the next
-            _RecordingEvent("b1", actions, ms_since_last_event=300),
-            _RecordingEvent("b2", actions),
+            # The player waits the delay of an event before playing it
+            _RecordingEvent("b1", actions),
+            _RecordingEvent("b2", actions, ms_since_last_event=300),
         ]
     )
 
@@ -295,11 +296,11 @@ def test_smooth_steps_follow_the_path_a_few_pixels_apart():
     assert all(len(step.positions) == 1 for step in steps)
     assert steps[0].positions == [event.positions[0]]
     assert steps[-1].positions == [event.positions[-1]]
-    assert [step.ms_since_last_event for step in steps[:-1]] == [SMOOTH_STEP_MS] * (
+    # The movement keeps its recorded delay before it starts
+    assert steps[0].ms_since_last_event == 300
+    assert [step.ms_since_last_event for step in steps[1:]] == [SMOOTH_STEP_MS] * (
         len(steps) - 1
     )
-    # The movement keeps its recorded delay
-    assert steps[-1].ms_since_last_event == 300
     xs = [step.positions[0].global_position[0] for step in steps]
     assert xs == sorted(xs)
     assert max(b - a for a, b in itertools.pairwise(xs)) <= SMOOTH_STEP_PX
@@ -943,3 +944,28 @@ def test_macro_player_should_fail_if_menu_item_not_found(
     assert report.status == MacroPlaybackStatus.FAILURE
     assert isinstance(report.error, MacroPlaybackEndedError)
     assert not triggered
+
+
+def test_macro_player_waits_the_delay_of_an_event_before_playing_it(
+    macro_player: MacroPlayer,
+    qtbot: "QtBot",
+):
+    actions: list[str] = []
+    times: dict[str, float] = {}
+
+    def timed(name: str) -> _RecordingEvent:
+        def record_time() -> None:
+            times[name] = time.monotonic()
+
+        return _RecordingEvent(name, actions, before=record_time)
+
+    first, second = timed("first"), timed("second")
+    second.ms_since_last_event = 400
+    third = timed("third")
+
+    with qtbot.waitSignal(macro_player.playback_ended, timeout=TIMEOUT):
+        macro_player.play(Macro(events=[first, second, third]))
+
+    assert actions == ["first", "second", "third"]
+    assert times["second"] - times["first"] >= 0.35
+    assert times["third"] - times["second"] < 0.3
