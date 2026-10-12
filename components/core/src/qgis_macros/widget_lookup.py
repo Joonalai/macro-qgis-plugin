@@ -24,25 +24,36 @@ and the first visible widget found is used:
    play even if the canvas has moved on screen or another window covers it.
 2. The recorded :class:`~qgis_macros.macro.WidgetPath` is followed from its
    window down to the widget.
-3. The widget at the recorded screen position is used, or its nearest visible
+3. A toolbar button found by the path but hidden, because the toolbar is too
+   narrow for it, is shown by expanding the toolbar from its extension button.
+4. The widget at the recorded screen position is used, or its nearest visible
    neighbour that matches the recorded :class:`~qgis_macros.macro.WidgetSpec`.
 """
 
 import logging
+import time
 from collections.abc import Iterable
 from typing import TYPE_CHECKING
 
-from qgis.PyQt.QtCore import QPoint, Qt
-from qgis.PyQt.QtWidgets import QApplication, QWidget
+from qgis.PyQt.QtCore import QElapsedTimer, QPoint, Qt
+from qgis.PyQt.QtGui import QCursor
+from qgis.PyQt.QtWidgets import QApplication, QToolBar, QToolButton, QWidget
 
 from qgis_macros import utils
-from qgis_macros.constants import MAXIMUM_NEAREST_CANDIDATES, MAXIMUM_PARENT_DEPTH
+from qgis_macros.constants import (
+    MAXIMUM_NEAREST_CANDIDATES,
+    MAXIMUM_PARENT_DEPTH,
+    TOOLBAR_EXPAND_TIMEOUT_MS,
+)
 from qgis_macros.exceptions import WidgetNotFoundError
 
 if TYPE_CHECKING:
     from qgis_macros.macro import Position, WidgetPath, WidgetPathNode, WidgetSpec
 
 LOGGER = logging.getLogger(__name__)
+
+#: Object name of the button that expands a toolbar too narrow for its items.
+TOOLBAR_EXTENSION_NAME = "qt_toolbar_ext_button"
 
 
 def resolve_widget(
@@ -91,6 +102,41 @@ def find_by_path(
     return widget if spec.matches_structure(widget) else None
 
 
+def find_in_toolbar_extension(
+    spec: "WidgetSpec", path: "WidgetPath | None", _position: "Position"
+) -> QWidget | None:
+    """Expand the toolbar of a hidden button found by *path* to show the button.
+
+    A toolbar hides the buttons that do not fit in it, e.g. if the window is
+    narrower than when the macro was recorded, and shows them when its
+    extension button is clicked.
+    """
+    if path is None:
+        return None
+    widget = find_widget(path)
+    if (
+        widget is None
+        or widget.isVisible()
+        or not spec.matches_structure(widget)
+        or not isinstance(toolbar := widget.parentWidget(), QToolBar)
+        or not toolbar.isVisible()
+    ):
+        return None
+    extension = toolbar.findChild(QToolButton, TOOLBAR_EXTENSION_NAME)
+    # Toolbars outside main windows show the hidden buttons in a menu instead
+    if extension is None or not extension.isVisible() or extension.menu():
+        return None
+    if not extension.isChecked():
+        QCursor.setPos(extension.mapToGlobal(extension.rect().center()))
+        extension.click()
+    timer = QElapsedTimer()
+    timer.start()
+    while not widget.isVisible() and timer.elapsed() < TOOLBAR_EXPAND_TIMEOUT_MS:
+        QApplication.processEvents()
+        time.sleep(0.01)
+    return widget if widget.isVisible() else None
+
+
 def find_by_position(
     spec: "WidgetSpec", _path: "WidgetPath | None", position: "Position"
 ) -> QWidget | None:
@@ -109,6 +155,7 @@ def find_by_position(
 STRATEGIES = (
     find_map_canvas,
     find_by_path,
+    find_in_toolbar_extension,
     find_by_position,
 )
 
