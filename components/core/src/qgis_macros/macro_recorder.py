@@ -88,6 +88,8 @@ class MacroRecorder(QObject):
         self._menu_pressed_buttons: set[int] = set()
         # Menu item under a mouse release, recorded if the menu triggers it
         self._watched_menu_item: _WatchedMenuItem | None = None
+        # Widget of the mouse movement being recorded
+        self._move_widget: QWidget | None = None
 
     def add_widget_to_filter_events_out(self, widget: QWidget) -> None:
         """Add a widget to filter events out from the recorded events.
@@ -124,6 +126,7 @@ class MacroRecorder(QObject):
     def start_recording(self) -> None:
         """Start recording user actions."""
         self._recorded_events.clear()
+        self._move_widget = None
         self._menu_mouse_events.clear()
         self._menu_pressed_buttons.clear()
         self._recording = True
@@ -409,15 +412,18 @@ class MacroRecorder(QObject):
 
     def _record_mouse_move_event(self, event: QMouseEvent, widget: QWidget) -> None:
         """Record mouse movement events."""
-        current_position = Position.from_event(event)
         last_event = self._recorded_events[-1] if self._recorded_events else None
-        if isinstance(last_event, MacroMouseMoveEvent):
-            last_event.add_position(current_position)
+        if (
+            isinstance(last_event, MacroMouseMoveEvent)
+            and (position := self._move_position(event)) is not None
+        ):
+            last_event.add_position(position)
         else:
+            self._move_widget = widget
             move_event = MacroMouseMoveEvent(
                 widget_spec=WidgetSpec.create(widget),
                 ms_since_last_event=0,
-                positions=[current_position],
+                positions=[Position.from_event(event)],
                 buttons=enum_value(event.buttons()),
                 modifiers=enum_value(event.modifiers()),
                 widget_path=WidgetPath.create(widget),
@@ -425,6 +431,23 @@ class MacroRecorder(QObject):
             self._recorded_events.append(move_event)
             if isinstance(widget, QMenu):
                 self._menu_mouse_events.append(move_event)
+
+    def _move_position(self, event: QMouseEvent) -> Position | None:
+        """Return the position of *event* relative to the widget of the movement.
+
+        The cursor may move over other widgets, but the movement is played
+        relative to the widget where it started.
+        """
+        widget = self._move_widget
+        if widget is None:
+            return None
+        global_point = utils.event_global_pos(event)
+        try:
+            local_point = widget.mapFromGlobal(global_point)
+        except RuntimeError:
+            # The widget has been deleted
+            return None
+        return Position.from_points(local_point, global_point)
 
     def _record_mouse_wheel_event(self, event: QWheelEvent, widget: QWidget) -> None:
         """Record mouse wheel events."""
