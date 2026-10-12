@@ -112,6 +112,7 @@ unregister
 utils
 validator
 viewport
+weakref
 wfs
 wgs84
 wkb

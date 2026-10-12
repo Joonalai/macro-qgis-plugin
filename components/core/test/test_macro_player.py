@@ -192,6 +192,32 @@ class _RecordingEvent:
         self.actions.append(self.name)
 
 
+def test_macro_player_should_wait_for_playbacks_started_by_its_events(
+    macro_player: MacroPlayer,
+    qtbot: "QtBot",
+):
+    # E.g. a click on the run button of a processing algorithm plays a workflow
+    actions: list[str] = []
+    inner_player = MacroPlayer()
+    inner = Macro(
+        events=[
+            _RecordingEvent("b1", actions, ms_since_last_event=300),
+            _RecordingEvent("b2", actions),
+        ]
+    )
+    outer = Macro(
+        events=[
+            _RecordingEvent("start", actions, before=lambda: inner_player.play(inner)),
+            _RecordingEvent("end", actions),
+        ]
+    )
+
+    with qtbot.waitSignal(macro_player.playback_ended, timeout=TIMEOUT):
+        macro_player.play(outer)
+
+    assert actions == ["b1", "start", "b2", "end"]
+
+
 def test_macro_player_should_not_play_events_scheduled_before_stop(
     macro_player: MacroPlayer,
     qtbot: "QtBot",
