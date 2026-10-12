@@ -17,6 +17,7 @@
 - Added an option to move the mouse smoothly during playback
 - Macros wait for the workflows they start, e.g. from processing
 - Fixed macro speed, recorded delays, duplicate wheel events, hidden toolbar buttons, resized map canvas and unfocused key events in playback
+- Macros can be renamed from the context menu and sorted by name
 
 ## 1.0.1 - 2026-10-04
 

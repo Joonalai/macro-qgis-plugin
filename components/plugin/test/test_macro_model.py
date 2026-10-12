@@ -17,13 +17,14 @@
 #  along with macro-qgis-plugin. If not, see <https://www.gnu.org/licenses/>.
 from typing import TYPE_CHECKING
 
-from qgis.PyQt.QtCore import NULL, QModelIndex, Qt
+from qgis.PyQt.QtCore import QModelIndex, QPersistentModelIndex, Qt
 from qgis_macros.macro import Macro
 
 from macro_plugin.ui.macro_model import MacroTableModel
 
 if TYPE_CHECKING:
     from pytest_mock import MockerFixture
+    from pytest_subtests import SubTests
 
 
 def test_macro_table_model_initialization() -> None:
@@ -75,7 +76,7 @@ def test_macro_table_model_header_data() -> None:
     )
     assert (
         model.headerData(0, Qt.Orientation.Vertical, Qt.ItemDataRole.DisplayRole)
-        == NULL
+        is None
     )
     assert (
         model.headerData(
@@ -89,7 +90,7 @@ def test_macro_table_model_data_invalid_index() -> None:
     model = MacroTableModel()
 
     invalid_index = QModelIndex()
-    assert model.data(invalid_index, Qt.ItemDataRole.DisplayRole) == NULL
+    assert model.data(invalid_index, Qt.ItemDataRole.DisplayRole) is None
 
 
 def test_macro_table_model_data_text_alignment(mocker: "MockerFixture") -> None:
@@ -163,3 +164,51 @@ def test_macro_table_model_set_data_invalid_index() -> None:
     result = model.setData(QModelIndex(), "Name", Qt.ItemDataRole.EditRole)
 
     assert result is False
+
+
+def _names(model: MacroTableModel) -> list[str | None]:
+    return [macro.name for macro in model.macros]
+
+
+def test_macro_table_model_keeps_order_until_sorted() -> None:
+    model = MacroTableModel()
+    model.add_macros([Macro(events=[], name=name) for name in ("b", "a")])
+
+    assert _names(model) == ["b", "a"]
+
+
+def test_macro_table_model_sort(subtests: "SubTests") -> None:
+    model = MacroTableModel()
+    model.add_macros([Macro(events=[], name=name) for name in ("b", "C", "a")])
+    selected = QPersistentModelIndex(model.index(1, 0))
+
+    with subtests.test("Ascending ignores case"):
+        model.sort(0, Qt.SortOrder.AscendingOrder)
+        assert _names(model) == ["a", "b", "C"]
+        assert selected.row() == 2
+
+    with subtests.test("Added macro is sorted"):
+        model.add_macro(Macro(events=[], name="B2"))
+        assert _names(model) == ["a", "b", "B2", "C"]
+
+    with subtests.test("Renamed macro is sorted"):
+        assert model.setData(model.index(0, 0), "d")
+        assert _names(model) == ["b", "B2", "C", "d"]
+
+    with subtests.test("Descending"):
+        model.sort(0, Qt.SortOrder.DescendingOrder)
+        assert _names(model) == ["d", "C", "B2", "b"]
+
+
+def test_macro_table_model_set_data_saves_renamed_macro_after_sort(
+    mocker: "MockerFixture",
+) -> None:
+    storage = mocker.Mock()
+    model = MacroTableModel(storage)
+    macros = [Macro(events=[], name=name) for name in ("a", "b")]
+    model.add_macros(macros)
+    model.sort(0, Qt.SortOrder.AscendingOrder)
+
+    assert model.setData(model.index(0, 0), "c")
+
+    storage.save_macro.assert_called_with(macros[0])

@@ -24,7 +24,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from qgis.PyQt.QtCore import QModelIndex, Qt
-from qgis.PyQt.QtWidgets import QApplication, QToolButton
+from qgis.PyQt.QtWidgets import QAbstractItemView, QApplication, QToolButton
 from qgis_macros.exceptions import InvalidMacroFileError, MacroPluginError
 from qgis_macros.macro import Macro
 from qgis_macros.macro_file import MacroFile
@@ -736,6 +736,49 @@ def test_macro_context_menu_creates_workflow(
 
     assert workflow_model.workflows[0].macro_uids == [m.uid for m in macros]
     assert macro_panel.tab_widget.currentWidget() is macro_panel.tab_macro_workflows
+
+
+def test_macro_table_sorts_by_header_click(
+    macro_panel: MacroPanel,
+    macro_model: MacroTableModel,
+    qtbot: "QtBot",
+) -> None:
+    macro_model.add_macros([Macro(events=[], name=name) for name in ("b", "a")])
+    assert [m.name for m in macro_model.macros] == ["b", "a"]
+
+    header = require(macro_panel.table_view.horizontalHeader())
+    qtbot.mouseClick(
+        require(header.viewport()),
+        Qt.MouseButton.LeftButton,
+        pos=header.rect().center(),
+    )
+
+    assert [m.name for m in macro_model.macros] == ["a", "b"]
+
+
+@pytest.mark.usefixtures("macros")
+def test_macro_context_menu_renames_single_macro(
+    macro_panel: MacroPanel,
+    macro_model: MacroTableModel,
+    subtests: "SubTests",
+) -> None:
+    with subtests.test("Rename edits the selected macro"):
+        macro_panel.table_view.selectRow(1)
+        menu = macro_panel._create_macro_context_menu()
+        assert menu is not None
+
+        _find_action(menu, "Rename").trigger()
+
+        assert macro_panel.table_view.state() == QAbstractItemView.State.EditingState
+        assert macro_panel.table_view.currentIndex() == macro_model.index(1, 0)
+
+    with subtests.test("Rename is not offered for many macros"):
+        macro_panel.table_view.selectAll()
+        menu = macro_panel._create_macro_context_menu()
+        assert menu is not None
+
+        with pytest.raises(LookupError):
+            _find_action(menu, "Rename")
 
 
 def test_workflow_context_menu_step_actions(

@@ -4,6 +4,7 @@ autouse
 basemap
 basemaps
 bbox
+casefold
 centroid
 changelog
 checkable

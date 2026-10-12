@@ -187,9 +187,10 @@ class MacroPanel(UI_CLASS, QgsDevToolWidget):  # type: ignore
 
     def _configure_table(self) -> None:
         """Set up the table view with appropriate settings."""
-        require(self.table_view.horizontalHeader()).setSectionResizeMode(
-            QHeaderView.ResizeMode.Stretch
-        )
+        header = require(self.table_view.horizontalHeader())
+        header.setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        # Keep the macros in the order they were added until a header is clicked
+        header.setSortIndicator(-1, Qt.SortOrder.AscendingOrder)
         self.table_view.setModel(self._model)
         require(self.table_view.selectionModel()).selectionChanged.connect(
             self._update_ui_state
@@ -633,6 +634,12 @@ class MacroPanel(UI_CLASS, QgsDevToolWidget):  # type: ignore
             partial(self._new_workflow, macro_uids),
             "/mActionAdd.svg",
         )
+        if len(rows) == 1:
+            self._add_action(
+                menu,
+                tr("Rename"),
+                partial(self.table_view.edit, self._model.index(rows[0], 0)),
+            )
         self._add_action(
             menu,
             tr("Export selected macros..."),
