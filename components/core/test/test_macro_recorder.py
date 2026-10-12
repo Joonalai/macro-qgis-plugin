@@ -30,9 +30,10 @@ from qgis.gui import (
     QgsMapToolDigitizeFeature,
 )
 from qgis.PyQt.QtCore import QEvent, QPoint, QPointF, Qt
-from qgis.PyQt.QtGui import QMouseEvent
+from qgis.PyQt.QtGui import QKeyEvent, QMouseEvent
 from qgis.PyQt.QtWidgets import QMenu, QWidget
 from qgis_macros.macro import (
+    MacroKeyEvent,
     MacroMenuActionEvent,
     MacroMouseEvent,
     MacroMouseMoveEvent,
@@ -437,3 +438,28 @@ def test_macro_recorder_records_movement_relative_to_its_first_widget(
         Position.from_points(QPoint(5, 5), dialog.button.mapToGlobal(QPoint(5, 5))),
         Position.from_points(dialog.button.mapFromGlobal(on_button2), on_button2),
     ]
+
+
+def test_macro_recorder_measures_time_from_the_previous_recorded_event(
+    dialog: Dialog, qtbot: "QtBot"
+) -> None:
+    recorder = MacroRecorder()
+
+    def press(key: Qt.Key, text: str) -> None:
+        event = QKeyEvent(
+            QEvent.Type.KeyPress, key, Qt.KeyboardModifier.NoModifier, text
+        )
+        recorder.eventFilter(dialog.line_edit, event)
+
+    recorder.start_recording()
+    press(Qt.Key.Key_A, "a")
+    qtbot.wait(300)
+    # Other events, e.g. paint events, pass the recorder meanwhile
+    recorder.eventFilter(dialog.line_edit, QEvent(QEvent.Type.UpdateRequest))
+    press(Qt.Key.Key_B, "b")
+    macro = recorder.stop_recording()
+
+    _, second = macro.events
+    assert isinstance(second, MacroKeyEvent)
+    assert second.key == enum_value(Qt.Key.Key_B)
+    assert second.ms_since_last_event >= 250
