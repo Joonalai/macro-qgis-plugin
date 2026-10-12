@@ -22,7 +22,6 @@ from collections.abc import Iterable
 from typing import Any, ClassVar
 
 from qgis.PyQt.QtCore import (
-    NULL,
     QAbstractTableModel,
     QMimeData,
     QModelIndex,
@@ -52,6 +51,7 @@ class MacroTableModel(QAbstractTableModel):
         super().__init__()
         self.macros: list[Macro] = []
         self._storage = storage
+        self._sort_order: Qt.SortOrder | None = None
 
     def add_macro(self, macro: Macro) -> None:
         """Append a macro and notify attached views."""
@@ -68,6 +68,7 @@ class MacroTableModel(QAbstractTableModel):
 
         # Notify the view that rows have been added
         self.endInsertRows()
+        self._apply_sort()
         if self._storage is not None:
             for macro in macros:
                 self._storage.save_macro(macro)
@@ -88,6 +89,7 @@ class MacroTableModel(QAbstractTableModel):
         self.beginResetModel()
         self.macros = macros
         self.endResetModel()
+        self._apply_sort()
 
     def rowCount(self, parent: QModelIndex | None = None) -> int:  # noqa: N802, D102
         parent = parent or QModelIndex()
@@ -107,13 +109,13 @@ class MacroTableModel(QAbstractTableModel):
             role == Qt.ItemDataRole.DisplayRole
             and orientation == Qt.Orientation.Horizontal
         ):
-            return self.headers.get(section, NULL)
+            return self.headers.get(section)
         if (
             role == Qt.ItemDataRole.TextAlignmentRole
             and orientation == Qt.Orientation.Horizontal
         ):
             return Qt.AlignmentFlag.AlignLeft
-        return NULL
+        return None
 
     def flags(self, index: QModelIndex) -> Any:
         """Return the flags for the given index.
@@ -147,7 +149,7 @@ class MacroTableModel(QAbstractTableModel):
         """Return the data for the given index and role."""
         row = index.row()
         if not index.isValid():
-            return NULL
+            return None
         if role == Qt.ItemDataRole.TextAlignmentRole:
             return Qt.AlignmentFlag.AlignLeft
         if role in (
@@ -157,7 +159,7 @@ class MacroTableModel(QAbstractTableModel):
         ):
             return QVariant(self.macros[row].name)
 
-        return NULL
+        return None
 
     def setData(  # noqa: N802
         self,
@@ -176,8 +178,39 @@ class MacroTableModel(QAbstractTableModel):
         name = value.strip()
         if not name:
             return False
-        self.macros[row].name = name
+        macro = self.macros[row]
+        macro.name = name
         self.dataChanged.emit(index, index, [role])
+        self._apply_sort()
         if self._storage is not None:
-            self._storage.save_macro(self.macros[row])
+            self._storage.save_macro(macro)
         return True
+
+    def sort(  # noqa: D102
+        self, column: int, order: Qt.SortOrder = Qt.SortOrder.AscendingOrder
+    ) -> None:
+        self._sort_order = order if column == 0 else None
+        self._apply_sort()
+
+    def _apply_sort(self) -> None:
+        """Sort the macros by name, keeping added and renamed macros in order."""
+        if self._sort_order is None:
+            return
+        reverse = self._sort_order == Qt.SortOrder.DescendingOrder
+        macros = sorted(
+            self.macros,
+            key=lambda macro: (macro.name or "").casefold(),
+            reverse=reverse,
+        )
+        if all(a is b for a, b in zip(macros, self.macros, strict=True)):
+            return
+        self.layoutAboutToBeChanged.emit()
+        new_rows = {id(macro): row for row, macro in enumerate(macros)}
+        old_indexes = self.persistentIndexList()
+        new_indexes = [
+            self.index(new_rows[id(self.macros[index.row()])], index.column())
+            for index in old_indexes
+        ]
+        self.macros = macros
+        self.changePersistentIndexList(old_indexes, new_indexes)
+        self.layoutChanged.emit()
