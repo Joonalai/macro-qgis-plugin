@@ -31,6 +31,8 @@ import enum
 import logging
 from dataclasses import dataclass
 from functools import partial
+from typing import ClassVar
+from weakref import WeakSet
 
 from qgis.core import QgsApplication
 from qgis.PyQt.QtCore import QElapsedTimer, QObject, QTimer, pyqtSignal
@@ -45,6 +47,8 @@ MIN_PLAYBACK_SPEED = 0.1
 # Distance and recorded delay between the steps of a smooth mouse movement
 SMOOTH_STEP_PX = 12
 SMOOTH_STEP_MS = 10
+# How often a player checks whether the playbacks it started have ended
+NESTED_PLAYBACK_POLL_MS = 50
 
 
 class MacroPlaybackStatus(enum.Enum):
@@ -75,6 +79,10 @@ class MacroPlayer(QObject):
 
     playback_ended = pyqtSignal(MacroPlaybackReport)
 
+    _players: ClassVar["WeakSet[MacroPlayer]"] = WeakSet()
+    # Incremented for every playback, so that playbacks can be ordered
+    _playback_count: ClassVar[int] = 0
+
     def __init__(
         self,
         playback_speed: float = 1.0,
@@ -92,6 +100,8 @@ class MacroPlayer(QObject):
         super().__init__()
         self._smooth_mouse_movement = smooth_mouse_movement
         self._smooth = False
+        self._started = 0
+        MacroPlayer._players.add(self)
         self._speed = playback_speed
         # The speed of the macro being played, relative to the player speed
         self._macro_speed = 1.0
@@ -118,10 +128,17 @@ class MacroPlayer(QObject):
         """Return whether a macro is being played back."""
         return self._playing
 
+    @property
+    def playback_order(self) -> int:
+        """Order of the latest playback of the player among all playbacks."""
+        return self._started
+
     def play(self, macro: Macro) -> None:
         """Play back the recorded events asynchronously."""
         self._playback_id += 1
         self._playing = True
+        MacroPlayer._playback_count += 1
+        self._started = MacroPlayer._playback_count
         self._macro_speed = macro.speed
         self._smooth = (
             Settings.smooth_mouse_movement.get()
@@ -177,8 +194,27 @@ class MacroPlayer(QObject):
             for i, position in enumerate(positions)
         ]
 
+    def _nested_playback_running(self) -> bool:
+        """Return whether a playback started after this one is running.
+
+        E.g. a click on the run button of a processing algorithm plays a
+        macro workflow, and the macro continues only after the workflow.
+        """
+        return any(
+            player is not self
+            and player.is_playing()
+            and player.playback_order > self.playback_order
+            for player in list(MacroPlayer._players)
+        )
+
     def _play_next_event(self, playback_id: int) -> None:
         if playback_id != self._playback_id:
+            return
+
+        if self._nested_playback_running():
+            QTimer.singleShot(
+                NESTED_PLAYBACK_POLL_MS, partial(self._play_next_event, playback_id)
+            )
             return
 
         if not self._event_queue:
