@@ -134,6 +134,13 @@ class Settings(enum.Enum):
         ),
         default=True,
     )
+    smooth_mouse_movement = Setting(
+        description=tr(
+            "Move the mouse smoothly along the recorded path during playback "
+            "instead of jumping between the recorded positions"
+        ),
+        default=False,
+    )
     move_event_interpolation_count = Setting(
         description=tr(
             "Maximum number of points recorded per mouse movement. "

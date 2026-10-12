@@ -32,7 +32,9 @@ Example usage::
 """
 
 import dataclasses
+import itertools
 import logging
+import math
 import sys
 import time
 import uuid
@@ -196,6 +198,15 @@ class MacroEvent(Protocol):
         ...
 
 
+def _point_between(
+    start: tuple[int, int], end: tuple[int, int], t: float
+) -> tuple[int, int]:
+    return (
+        round(start[0] + (end[0] - start[0]) * t),
+        round(start[1] + (end[1] - start[1]) * t),
+    )
+
+
 @dataclass(frozen=True)
 class Position:
     """Screen position represented as local and global coordinate pairs."""
@@ -252,6 +263,26 @@ class Position:
                 local_positions, global_positions, strict=False
             )
         ]
+
+    @staticmethod
+    def densify(positions: list["Position"], step: int) -> list["Position"]:
+        """Add positions between *positions*, at most *step* pixels apart."""
+        if len(positions) < 2:  # noqa: PLR2004
+            return list(positions)
+        dense = [positions[0]]
+        for start, end in itertools.pairwise(positions):
+            dx = end.global_position[0] - start.global_position[0]
+            dy = end.global_position[1] - start.global_position[1]
+            count = max(1, math.ceil(math.hypot(dx, dy) / step))
+            for i in range(1, count + 1):
+                t = i / count
+                dense.append(
+                    Position(
+                        _point_between(start.local_position, end.local_position, t),
+                        _point_between(start.global_position, end.global_position, t),
+                    )
+                )
+        return dense
 
     @property
     def local_point(self) -> QPoint:

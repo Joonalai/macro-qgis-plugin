@@ -26,6 +26,7 @@ Example::
     player.play(macro)
 """
 
+import dataclasses
 import enum
 import logging
 from dataclasses import dataclass
@@ -35,11 +36,15 @@ from qgis.core import QgsApplication
 from qgis.PyQt.QtCore import QElapsedTimer, QObject, QTimer, pyqtSignal
 
 from qgis_macros.exceptions import MacroPlaybackEndedError
-from qgis_macros.macro import Macro, MacroEvent
+from qgis_macros.macro import Macro, MacroEvent, MacroMouseMoveEvent, Position
+from qgis_macros.settings import Settings
 
 LOGGER = logging.getLogger(__name__)
 
 MIN_PLAYBACK_SPEED = 0.1
+# Distance and recorded delay between the steps of a smooth mouse movement
+SMOOTH_STEP_PX = 12
+SMOOTH_STEP_MS = 10
 
 
 class MacroPlaybackStatus(enum.Enum):
@@ -70,9 +75,23 @@ class MacroPlayer(QObject):
 
     playback_ended = pyqtSignal(MacroPlaybackReport)
 
-    def __init__(self, playback_speed: float = 1.0) -> None:
-        """Initialize the player with the given speed factor."""
+    def __init__(
+        self,
+        playback_speed: float = 1.0,
+        *,
+        smooth_mouse_movement: bool | None = None,
+    ) -> None:
+        """Initialize the player.
+
+        :param playback_speed: Speed factor, 2.0 plays twice as fast.
+        :param smooth_mouse_movement: Whether to move the mouse in small steps
+            along the recorded path. If None, the
+            :attr:`~qgis_macros.settings.Settings.smooth_mouse_movement`
+            setting is used.
+        """
         super().__init__()
+        self._smooth_mouse_movement = smooth_mouse_movement
+        self._smooth = False
         self._speed = playback_speed
         # The speed of the macro being played, relative to the player speed
         self._macro_speed = 1.0
@@ -104,6 +123,11 @@ class MacroPlayer(QObject):
         self._playback_id += 1
         self._playing = True
         self._macro_speed = macro.speed
+        self._smooth = (
+            Settings.smooth_mouse_movement.get()
+            if self._smooth_mouse_movement is None
+            else self._smooth_mouse_movement
+        )
         self._event_queue = macro.events[:]
         LOGGER.info("Playing macro %s", macro.name)
         self._play_next_event(self._playback_id)
@@ -130,6 +154,29 @@ class MacroPlayer(QObject):
         self._playing = False
         self.playback_ended.emit(report)
 
+    @staticmethod
+    def _smooth_steps(event: MacroMouseMoveEvent) -> list[MacroMouseMoveEvent]:
+        """Split a mouse movement into steps of one position each.
+
+        The steps follow the recorded path a few pixels apart. The last step
+        keeps the recorded delay of the movement.
+        """
+        positions = Position.densify(event.positions, SMOOTH_STEP_PX)
+        if len(positions) <= 1:
+            return [event]
+        return [
+            dataclasses.replace(
+                event,
+                positions=[position],
+                ms_since_last_event=(
+                    event.ms_since_last_event
+                    if i == len(positions) - 1
+                    else SMOOTH_STEP_MS
+                ),
+            )
+            for i, position in enumerate(positions)
+        ]
+
     def _play_next_event(self, playback_id: int) -> None:
         if playback_id != self._playback_id:
             return
@@ -143,6 +190,10 @@ class MacroPlayer(QObject):
 
         # Pop the next event from the queue
         macro_event = self._event_queue.pop(0)
+        if self._smooth and isinstance(macro_event, MacroMouseMoveEvent):
+            steps = self._smooth_steps(macro_event)
+            macro_event = steps[0]
+            self._event_queue[:0] = steps[1:]
 
         def on_event_finished() -> None:
             # Events call this right before their action, which is skipped if
