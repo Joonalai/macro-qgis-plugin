@@ -37,6 +37,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from qgis.PyQt.QtCore import QObject, pyqtSignal
+from qgis_plugin_tools.tools.exceptions import PluginNotFoundError
 from qgis_plugin_tools.tools.i18n import tr
 from qgis_plugin_tools.tools.resources import profile_path
 from qgis_plugin_tools.tools.settings import (
@@ -150,9 +151,18 @@ class Settings(enum.Enum):
             setting.set(setting.value.default)
 
     def get(self) -> Any:
-        """Return the current value, cast to the default's type."""
+        """Return the current value, cast to the default's type.
+
+        The settings belong to the plugin that uses the library. If the
+        plugin cannot be determined, e.g. when the library is used outside
+        of plugins while several plugins are loaded, the default is returned.
+        """
         setting = self.value
-        value = get_setting(self.name, setting.default)
+        try:
+            value = get_setting(self.name, setting.default)
+        except PluginNotFoundError:
+            LOGGER.debug("Plugin not found, using the default of %s", self.name)
+            return setting.default
         if not isinstance(value, type(setting.default)):
             if isinstance(self.value.default, bool) and isinstance(value, str):
                 value = value.lower() == "true"
