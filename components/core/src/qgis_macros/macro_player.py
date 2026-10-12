@@ -74,6 +74,8 @@ class MacroPlayer(QObject):
         """Initialize the player with the given speed factor."""
         super().__init__()
         self._speed = playback_speed
+        # The speed of the macro being played, relative to the player speed
+        self._macro_speed = 1.0
         self._timer = QElapsedTimer()
         self._playing = False
         self._event_queue: list[MacroEvent] = []
@@ -86,8 +88,11 @@ class MacroPlayer(QObject):
         self._speed = speed
 
     def _wait_time(self, ms_since_last_event: int) -> int:
-        """Scale the recorded delay so that a higher speed means a shorter wait."""
-        speed = max(self._speed, MIN_PLAYBACK_SPEED)
+        """Scale the recorded delay so that a higher speed means a shorter wait.
+
+        The speed of the player and the speed of the macro are multiplied.
+        """
+        speed = max(self._speed * self._macro_speed, MIN_PLAYBACK_SPEED)
         return int(ms_since_last_event / speed) + 15
 
     def is_playing(self) -> bool:
@@ -98,6 +103,7 @@ class MacroPlayer(QObject):
         """Play back the recorded events asynchronously."""
         self._playback_id += 1
         self._playing = True
+        self._macro_speed = macro.speed
         self._event_queue = macro.events[:]
         LOGGER.info("Playing macro %s", macro.name)
         self._play_next_event(self._playback_id)
