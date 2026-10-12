@@ -16,7 +16,18 @@
 #  You should have received a copy of the GNU General Public License
 #  along with macro-qgis-plugin. If not, see <https://www.gnu.org/licenses/>.
 import pytest
-from qgis_macros.macro import Macro, MacroMenuActionEvent, Position, WidgetSpec
+from qgis.gui import QgsMapCanvas
+from qgis.PyQt.QtCore import QPoint
+from qgis.PyQt.QtWidgets import QWidget
+from qgis_macros.macro import (
+    Macro,
+    MacroMenuActionEvent,
+    MacroMouseEvent,
+    Position,
+    WidgetPath,
+    WidgetSpec,
+)
+from qgis_plugin_tools.utils.typing_utils import require
 
 pytest_plugins = [
     "macro_test_utils.macro_fixture",
@@ -109,3 +120,60 @@ def test_menu_action_event_serialization() -> None:
     event = deserialized.events[0]
     assert isinstance(event, MacroMenuActionEvent)
     assert event.action_path == ["A", "b"]
+
+
+def _canvas_click(canvas_size: tuple[int, int] | None) -> MacroMouseEvent:
+    return MacroMouseEvent(
+        widget_spec=WidgetSpec("QWidget", ""),
+        widget_path=WidgetPath("", [], is_map_canvas=True, canvas_size=canvas_size),
+        position=Position((20, 30), (0, 0)),
+    )
+
+
+def test_canvas_size_is_serialized_only_on_map_canvas() -> None:
+    on_canvas = Macro([_canvas_click((400, 300))])
+    elsewhere = Macro(
+        [
+            MacroMouseEvent(
+                widget_spec=WidgetSpec("QPushButton", "OK"),
+                widget_path=WidgetPath("Dialog", []),
+            )
+        ]
+    )
+
+    deserialized = Macro.deserialize(on_canvas.serialize())
+    assert deserialized == on_canvas
+    [click] = deserialized.events
+    assert isinstance(click, MacroMouseEvent)
+    assert require(click.widget_path).canvas_size == (400, 300)
+    assert "canvas_size" not in elsewhere.serialize()["events"][0]["widget_path"]
+
+
+def test_position_on_map_canvas_keeps_its_offset_from_the_center(
+    qgis_canvas: QgsMapCanvas,
+) -> None:
+    viewport = require(qgis_canvas.viewport())
+    width, height = viewport.width(), viewport.height()
+
+    same_size = _canvas_click((width, height)).corrected_position(
+        viewport, Position((20, 30), (0, 0))
+    )
+    larger = _canvas_click((width + 100, height + 50)).corrected_position(
+        viewport, Position((120, 80), (0, 0))
+    )
+
+    assert same_size.local_point == QPoint(20, 30)
+    assert larger.local_point == QPoint(70, 55)
+    assert larger.global_point == viewport.mapToGlobal(QPoint(70, 55))
+
+
+def test_position_without_canvas_size_is_not_moved(qgis_canvas: QgsMapCanvas) -> None:
+    viewport = require(qgis_canvas.viewport())
+    position = Position((20, 30), (0, 0))
+
+    assert _canvas_click(None).corrected_position(
+        viewport, position
+    ).local_point == QPoint(20, 30)
+    assert _canvas_click((10, 10)).corrected_position(
+        QWidget(), position
+    ).local_point == QPoint(20, 30)
