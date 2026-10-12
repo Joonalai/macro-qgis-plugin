@@ -16,8 +16,19 @@
 #  You should have received a copy of the GNU General Public License
 #  along with macro-qgis-plugin. If not, see <https://www.gnu.org/licenses/>.
 
+from typing import TYPE_CHECKING
+
+import pytest
 from macro_test_utils.utils import Dialog
-from qgis.PyQt.QtWidgets import QDialogButtonBox, QMenu, QPushButton, QWidget
+from qgis.PyQt.QtWidgets import (
+    QDialogButtonBox,
+    QMainWindow,
+    QMenu,
+    QPushButton,
+    QToolBar,
+    QToolButton,
+    QWidget,
+)
 from qgis_macros import widget_lookup
 from qgis_macros.macro import (
     Macro,
@@ -29,6 +40,11 @@ from qgis_macros.macro import (
     WidgetSpec,
 )
 from qgis_plugin_tools.utils.typing_utils import require
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
+
+    from pytestqt.qtbot import QtBot
 
 
 def test_widget_path_create_and_find(dialog: Dialog) -> None:
@@ -157,6 +173,64 @@ def test_find_by_path_ignores_hidden_widget(dialog: Dialog) -> None:
     dialog.button.hide()
 
     assert widget_lookup.find_by_path(spec, path, position) is None
+
+
+@pytest.fixture
+def narrow_toolbar(qtbot: "QtBot") -> "Iterator[QToolBar]":
+    window = QMainWindow()
+    window.setObjectName("NarrowWindow")
+    qtbot.addWidget(window)
+    toolbar = require(window.addToolBar("Tools"))
+    toolbar.setObjectName("Tools")
+    for i in range(12):
+        toolbar.addAction(f"Tool {i}")
+    window.setCentralWidget(QWidget())
+    # Qt shows the hidden buttons in a menu if the expanded toolbar would not
+    # fit in the window
+    window.resize(200, 400)
+    window.show()
+    qtbot.waitExposed(window)
+    # The window is deleted if it is not referenced
+    yield toolbar
+    window.close()
+
+
+def _toolbar_button(toolbar: QToolBar, text: str) -> QToolButton:
+    return next(
+        button
+        for button in toolbar.findChildren(QToolButton)
+        if button.defaultAction() is not None
+        and require(button.defaultAction()).text() == text
+    )
+
+
+def _extension(toolbar: QToolBar) -> QToolButton:
+    return require(toolbar.findChild(QToolButton, widget_lookup.TOOLBAR_EXTENSION_NAME))
+
+
+def test_find_in_toolbar_extension_expands_toolbar(narrow_toolbar: QToolBar) -> None:
+    button = _toolbar_button(narrow_toolbar, "Tool 11")
+    path = require(WidgetPath.create(button))
+    spec = WidgetSpec.create(button)
+    position = Position((0, 0), (0, 0))
+    assert not button.isVisible()
+    assert widget_lookup.find_by_path(spec, path, position) is None
+
+    assert widget_lookup.resolve_widget(spec, path, position) is button
+    assert button.isVisible()
+    assert _extension(narrow_toolbar).isChecked()
+
+
+def test_find_in_toolbar_extension_ignores_visible_button(
+    narrow_toolbar: QToolBar,
+) -> None:
+    button = _toolbar_button(narrow_toolbar, "Tool 0")
+    path = require(WidgetPath.create(button))
+    spec = WidgetSpec.create(button)
+    position = Position((0, 0), (0, 0))
+
+    assert widget_lookup.find_in_toolbar_extension(spec, path, position) is None
+    assert not _extension(narrow_toolbar).isChecked()
 
 
 def test_widget_spec_matches_by_object_name_when_text_differs(dialog: Dialog) -> None:
