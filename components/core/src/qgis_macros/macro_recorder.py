@@ -21,6 +21,7 @@ import contextlib
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from qgis.PyQt import sip
 from qgis.PyQt.QtCore import QElapsedTimer, QEvent, QObject, QPoint
 from qgis.PyQt.QtGui import QKeyEvent, QMouseEvent, QWheelEvent
 from qgis.PyQt.QtWidgets import QApplication, QMenu, QWidget
@@ -90,6 +91,9 @@ class MacroRecorder(QObject):
         self._watched_menu_item: _WatchedMenuItem | None = None
         # Widget of the mouse movement being recorded
         self._move_widget: QWidget | None = None
+        # Identifies the last recorded wheel event, which Qt may pass on to
+        # other widgets, e.g. from a viewport to its scroll bar
+        self._last_wheel_event: tuple[object, ...] | None = None
 
     def add_widget_to_filter_events_out(self, widget: QWidget) -> None:
         """Add a widget to filter events out from the recorded events.
@@ -127,6 +131,7 @@ class MacroRecorder(QObject):
         """Start recording user actions."""
         self._recorded_events.clear()
         self._move_widget = None
+        self._last_wheel_event = None
         self._menu_mouse_events.clear()
         self._menu_pressed_buttons.clear()
         self._recording = True
@@ -466,7 +471,21 @@ class MacroRecorder(QObject):
     def _record_mouse_wheel_event(
         self, event: QWheelEvent, widget: QWidget, elapsed: int
     ) -> None:
-        """Record mouse wheel events."""
+        """Record mouse wheel events.
+
+        A wheel event that Qt passes on to another widget is recorded once.
+        """
+        global_position = utils.event_global_pos(event)
+        key = (
+            sip.unwrapinstance(event),
+            event.timestamp(),
+            global_position.x(),
+            global_position.y(),
+            event.angleDelta().y(),
+        )
+        if key == self._last_wheel_event:
+            return
+        self._last_wheel_event = key
         # Qt 6 wheel events have no source
         source = getattr(event, "source", None)
         self._recorded_events.append(
