@@ -111,6 +111,7 @@ unittest
 unlink
 unregister
 unwrapinstance
+upsert
 urlsafe
 util
 utils

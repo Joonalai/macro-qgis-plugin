@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Playback failures report the macro and event that failed
+- Added `MacroRecorder(ignore_playback=True)`, `MacroFile.upsert_macro()` and a widget tree dump
+
 ## 1.1.0 - 2026-10-13
 
 - Relicensed under GPL-2.0-or-later

@@ -39,11 +39,13 @@ from qgis_macros.macro import (
     MacroMouseMoveEvent,
     Position,
 )
+from qgis_macros.macro_player import MacroPlayer
 from qgis_macros.macro_recorder import MacroRecorder
 from qgis_macros.utils import enum_value
 from qgis_plugin_tools.utils.typing_utils import require
 
 if TYPE_CHECKING:
+    from pytest_mock import MockerFixture
     from pytestqt.qtbot import QtBot
 
 WAIT_MS = 5
@@ -518,3 +520,30 @@ def test_macro_recorder_records_a_wheel_event_passed_on_to_a_scroll_bar_once(
     macro = recorder.stop_recording()
 
     assert [type(e).__name__ for e in macro.events] == ["MacroWheelEvent"] * 2
+
+
+@pytest.mark.parametrize(
+    ("ignore_playback", "playing", "recorded"),
+    [(True, True, False), (True, False, True), (False, True, True)],
+    ids=["ignored during playback", "recorded without playback", "default"],
+)
+def test_macro_recorder_ignores_events_during_playback_if_requested(
+    dialog: Dialog,
+    dialog_widget_positions: dict[str, WidgetInfo],
+    qtbot: "QtBot",
+    mocker: "MockerFixture",
+    ignore_playback: bool,
+    playing: bool,
+    recorded: bool,
+):
+    mocker.patch.object(MacroPlayer, "any_playing", return_value=playing)
+    recorder = MacroRecorder(ignore_playback=ignore_playback)
+    button = dialog_widget_positions["button"]
+
+    recorder.start_recording()
+    qtbot.mouseClick(
+        dialog.button, Qt.MouseButton.LeftButton, pos=button.position.local_point
+    )
+    macro = recorder.stop_recording()
+
+    assert bool(macro.events) == recorded

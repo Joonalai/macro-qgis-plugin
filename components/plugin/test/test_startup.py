@@ -342,3 +342,35 @@ def test_play_from_environment_does_nothing_without_file(
     assert startup.play_from_environment() is None
 
     mock_play.assert_not_called()
+
+
+def test_play_raises_without_reporting(
+    tmp_path: "Path",
+    mock_msg_bar: "MagicMock",
+    mock_exit: "MagicMock",
+):
+    playback = StartupPlayback(tmp_path / "missing.json", exit_on_finish=True)
+
+    with pytest.raises(MacroPluginError):
+        playback.play()
+
+    mock_msg_bar.error.assert_not_called()
+    mock_exit.assert_not_called()
+
+
+def test_play_plays_the_macros_with_the_given_speed(
+    macro_file_path: "Path",
+    play_spy: "MagicMock",
+    mock_msg_bar: "MagicMock",
+    mocker: "MockerFixture",
+):
+    init_spy = mocker.spy(MacroPlayer, "__init__")
+
+    StartupPlayback(
+        macro_file_path, "both", speed=2.5, smooth_mouse_movement=True
+    ).play()
+
+    assert played_names(play_spy) == ["second", "first"]
+    assert init_spy.call_args.args[1:] == (2.5,)
+    assert init_spy.call_args.kwargs == {"smooth_mouse_movement": True}
+    mock_msg_bar.info.assert_not_called()

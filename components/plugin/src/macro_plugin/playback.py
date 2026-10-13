@@ -68,18 +68,30 @@ def end_profiling() -> None:
         require(QgsApplication.profiler()).end(Settings.profile_macro_group.get())
 
 
-def play_macro(macro: Macro, feedback: QgsProcessingFeedback) -> None:
+def play_macro(
+    macro: Macro,
+    feedback: QgsProcessingFeedback,
+    *,
+    speed: float | None = None,
+    smooth_mouse_movement: bool | None = None,
+) -> None:
     """Play *macro* and block until the playback has ended.
 
     Events are processed while waiting, so the function must be called from
     the main thread. Canceling *feedback* stops the playback.
 
+    :param speed: Playback speed. If None, the speed setting is used.
+    :param smooth_mouse_movement: Whether to move the mouse smoothly. If None,
+        the setting is used.
     :raises QgsProcessingException: If the playback fails or is canceled.
     """
     if feedback.isCanceled():
         raise QgsProcessingException(tr("Macro playback was canceled."))
 
-    player = MacroPlayer(Settings.speed.get())
+    player = MacroPlayer(
+        Settings.speed.get() if speed is None else speed,
+        smooth_mouse_movement=smooth_mouse_movement,
+    )
     loop = QEventLoop()
     reports: list[MacroPlaybackReport] = []
 
@@ -119,8 +131,16 @@ def play_macro(macro: Macro, feedback: QgsProcessingFeedback) -> None:
         raise QgsProcessingException(message) from error
 
 
-def play_macros(macros: Sequence[Macro], feedback: QgsProcessingFeedback) -> None:
+def play_macros(
+    macros: Sequence[Macro],
+    feedback: QgsProcessingFeedback,
+    *,
+    speed: float | None = None,
+    smooth_mouse_movement: bool | None = None,
+) -> None:
     """Play *macros* one after another, reporting the progress to *feedback*.
+
+    See :func:`play_macro` for the parameters.
 
     :raises QgsProcessingException: If a playback fails or is canceled.
     """
@@ -133,5 +153,10 @@ def play_macros(macros: Sequence[Macro], feedback: QgsProcessingFeedback) -> Non
                 len(macros),
             )
         )
-        play_macro(macro, feedback)
+        play_macro(
+            macro,
+            feedback,
+            speed=speed,
+            smooth_mouse_movement=smooth_mouse_movement,
+        )
         feedback.setProgress(100 * (step + 1) / len(macros))

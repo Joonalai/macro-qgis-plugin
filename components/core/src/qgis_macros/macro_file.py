@@ -75,6 +75,22 @@ class MacroFile:
         macros = [macros_by_uid[uid] for uid in uids if uid in macros_by_uid]
         return cls(macros, workflows)
 
+    def upsert_macro(self, macro: Macro) -> Macro:
+        """Replace the macro with the name of *macro*, or add *macro*.
+
+        A replaced macro keeps its place and its uid, so that the workflows
+        that use it play the new macro.
+
+        :returns: The macro as it is stored in the file.
+        """
+        for i, existing in enumerate(self.macros):
+            if macro.name is not None and existing.name == macro.name:
+                macro.uid = existing.uid
+                self.macros[i] = macro
+                return macro
+        self.macros.append(macro)
+        return macro
+
     def serialize(self) -> dict:
         """Serialize the file contents to a JSON-compatible dict."""
         return {

@@ -60,12 +60,25 @@ class MacroPlaybackStatus(enum.Enum):
     STOPPED = enum.auto()
 
 
+@dataclass(frozen=True)
+class PlaybackLocation:
+    """Event of a macro at which a playback failed."""
+
+    macro_uid: str
+    macro_name: str | None
+    # Index of the event in the events of the macro
+    event_index: int
+    event_count: int
+
+
 @dataclass
 class MacroPlaybackReport:
     """Report emitted when macro playback completes."""
 
     status: MacroPlaybackStatus = MacroPlaybackStatus.SUCCESS
     error: Exception | None = None
+    # Event at which a failed playback ended
+    location: PlaybackLocation | None = None
 
     def __post_init__(self) -> None:
         if self.status == MacroPlaybackStatus.FAILURE and self.error is None:
@@ -110,7 +123,9 @@ class MacroPlayer(QObject):
         self._macro_speed = 1.0
         self._timer = QElapsedTimer()
         self._playing = False
-        self._event_queue: list[MacroEvent] = []
+        self._macro: Macro | None = None
+        # Events to play with their indices in the events of the macro
+        self._event_queue: list[tuple[int, MacroEvent]] = []
         # Incremented whenever a playback starts or ends, so that the events
         # scheduled by an earlier playback are not played
         self._playback_id = 0
@@ -131,6 +146,11 @@ class MacroPlayer(QObject):
         """Return whether a macro is being played back."""
         return self._playing
 
+    @classmethod
+    def any_playing(cls) -> bool:
+        """Return whether any player is playing back a macro."""
+        return any(player.is_playing() for player in list(cls._players))
+
     @property
     def playback_order(self) -> int:
         """Order of the latest playback of the player among all playbacks."""
@@ -149,7 +169,8 @@ class MacroPlayer(QObject):
             if self._smooth_mouse_movement is None
             else self._smooth_mouse_movement
         )
-        self._event_queue = macro.events[:]
+        self._macro = macro
+        self._event_queue = list(enumerate(macro.events))
         LOGGER.info("Playing macro %s", macro.name)
         self._play_next_event(self._playback_id)
 
@@ -248,11 +269,11 @@ class MacroPlayer(QObject):
             return
 
         # Pop the next event from the queue
-        macro_event = self._event_queue.pop(0)
+        event_index, macro_event = self._event_queue.pop(0)
         if self._smooth and isinstance(macro_event, MacroMouseMoveEvent):
             steps = self._smooth_steps(macro_event)
             macro_event = steps[0]
-            self._event_queue[:0] = steps[1:]
+            self._event_queue[:0] = [(event_index, step) for step in steps[1:]]
 
         def on_event_finished() -> None:
             # Events call this right before their action, which is skipped if
@@ -261,7 +282,7 @@ class MacroPlayer(QObject):
                 raise _PlaybackStoppedError
             # The delay of an event is the time before it was recorded
             next_delay = (
-                self._event_queue[0].ms_since_last_event if self._event_queue else 0
+                self._event_queue[0][1].ms_since_last_event if self._event_queue else 0
             )
             QTimer.singleShot(
                 self._wait_time(next_delay),
@@ -283,11 +304,18 @@ class MacroPlayer(QObject):
             # If an error occurs, halt playback and report failure.
             self._halt()
             LOGGER.exception("Playing macro stopped due to exception.")
+            location = self._location(event_index)
             self._end_playback(
                 MacroPlaybackReport(
-                    MacroPlaybackStatus.FAILURE, MacroPlaybackEndedError(e)
+                    MacroPlaybackStatus.FAILURE,
+                    MacroPlaybackEndedError(e, location),
+                    location,
                 )
             )
+
+    def _location(self, event_index: int) -> PlaybackLocation:
+        macro = require(self._macro)
+        return PlaybackLocation(macro.uid, macro.name, event_index, len(macro.events))
 
 
 class _PlaybackStoppedError(Exception):

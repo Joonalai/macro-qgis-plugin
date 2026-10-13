@@ -115,3 +115,30 @@ def test_load_invalid_file_raises(tmp_path: Path, content: str) -> None:
 def test_load_missing_file_raises(tmp_path: Path) -> None:
     with pytest.raises(InvalidMacroFileError):
         MacroFile.load(tmp_path / "missing.json")
+
+
+def test_upsert_macro_replaces_macro_of_same_name_keeping_its_uid():
+    first, second = _macro("first"), _macro("second")
+    workflow = MacroWorkflow("flow", [second.uid])
+    macro_file = MacroFile([first, second], [workflow])
+    new_second = _macro("second")
+
+    stored = macro_file.upsert_macro(new_second)
+
+    assert stored is new_second
+    assert stored.uid == second.uid
+    assert macro_file.macros == [first, new_second]
+    assert macro_file.macros[1] is new_second
+    assert workflow.resolve_macros({m.uid: m for m in macro_file.macros}) == [
+        new_second
+    ]
+
+
+def test_upsert_macro_adds_macro_with_new_name():
+    first = _macro("first")
+    macro_file = MacroFile([first])
+    new = _macro("new")
+
+    macro_file.upsert_macro(new)
+
+    assert [m.name for m in macro_file.macros] == ["first", "new"]
