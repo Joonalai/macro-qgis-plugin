@@ -390,7 +390,8 @@ class MacroKeyEvent(BaseMacroEvent):  # noqa: PLW1641
         The widget is resolved from the recorded widget path, so the event
         reaches the widget even if another window is active, e.g. the model
         designer or a processing dialog. Falls back to the focused widget if
-        the path cannot be resolved to a visible and enabled widget.
+        the path cannot be resolved to a visible and enabled widget, but
+        only if the recorded window is open.
 
         Raises:
             WidgetNotFoundError: If there is no widget to send the event to.
@@ -417,13 +418,17 @@ class MacroKeyEvent(BaseMacroEvent):  # noqa: PLW1641
         # Popups (e.g. menus) grab the keyboard and are not resolvable by path
         if self.widget_path is None or QApplication.activePopupWidget() is not None:
             return focus_widget
-        if not self.widget_path.nodes:
-            # The window gets the key events that no widget in it has focus for
-            return focus_widget or self.widget_path.find_widget()
         if focus_widget is not None and widget_lookup.path_leads_to(
             self.widget_path, focus_widget
         ):
             return focus_widget
+        # Keys typed into a closed or missing window would end up elsewhere
+        if not widget_lookup.window_exists(self.widget_path):
+            LOGGER.debug("Window of the key event not found")
+            return None
+        if not self.widget_path.nodes:
+            # The window gets the key events that no widget in it has focus for
+            return focus_widget or self.widget_path.find_widget()
         widget = self.widget_path.find_widget()
         if widget is None or not widget.isVisible() or not widget.isEnabled():
             LOGGER.debug("Widget path lookup failed, falling back to focused widget")
