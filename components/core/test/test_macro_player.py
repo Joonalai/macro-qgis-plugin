@@ -55,6 +55,7 @@ from qgis_macros.macro_player import (
     MacroPlaybackReport,
     MacroPlaybackStatus,
     MacroPlayer,
+    PlaybackLocation,
 )
 from qgis_macros.settings import Settings
 from qgis_macros.utils import enum_value
@@ -327,6 +328,22 @@ def test_macro_player_smooth_mouse_movement_option(
     assert player._smooth == expected
 
 
+def test_macro_player_any_playing_tracks_all_players(
+    button_click_macro: Macro,
+    macro_player: MacroPlayer,
+    qtbot: "QtBot",
+):
+    idle_player = MacroPlayer()
+    assert not MacroPlayer.any_playing()
+
+    with qtbot.waitSignal(macro_player.playback_ended, timeout=TIMEOUT):
+        macro_player.play(button_click_macro)
+        assert MacroPlayer.any_playing()
+        assert not idle_player.is_playing()
+
+    assert not MacroPlayer.any_playing()
+
+
 def test_macro_player_stop_should_do_nothing_if_not_playing(
     macro_player: MacroPlayer,
     qtbot: "QtBot",
@@ -351,6 +368,35 @@ def test_macro_player_should_raise_if_widget_not_found(
     report = blocker.args[0]
     assert report.status == MacroPlaybackStatus.FAILURE
     assert isinstance(report.error, MacroPlaybackEndedError)
+    assert report.location == PlaybackLocation(
+        button_click_macro.uid,
+        button_click_macro.name,
+        0,
+        len(button_click_macro.events),
+    )
+    assert report.error.location == report.location
+
+
+def test_macro_player_should_report_the_index_of_the_failed_event(
+    macro_player: MacroPlayer,
+    qtbot: "QtBot",
+):
+    def fail() -> None:
+        raise ValueError
+
+    actions: list[str] = []
+    macro = Macro(
+        events=[
+            _RecordingEvent("first", actions),
+            _RecordingEvent("second", actions, before=fail),
+        ]
+    )
+
+    with qtbot.waitSignal(macro_player.playback_ended, timeout=TIMEOUT) as blocker:
+        macro_player.play(macro)
+
+    location = blocker.args[0].location
+    assert (location.event_index, location.event_count) == (1, 2)
 
 
 def test_macro_player_should_click_moved_button(

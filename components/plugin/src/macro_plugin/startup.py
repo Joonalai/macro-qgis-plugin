@@ -99,7 +99,7 @@ def _matches(item: Macro | MacroWorkflow, name_or_uid: str) -> bool:
 class StartupPlayback(QObject):
     """Plays macros of a macro file once QGIS has been initialized."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
         path: Path,
         workflow: str | None = None,
@@ -107,6 +107,8 @@ class StartupPlayback(QObject):
         *,
         exit_on_finish: bool = False,
         start_delay_ms: int = DEFAULT_START_DELAY_MS,
+        speed: float | None = None,
+        smooth_mouse_movement: bool | None = None,
     ) -> None:
         """Initialize the playback.
 
@@ -117,6 +119,9 @@ class StartupPlayback(QObject):
             The project is closed without saving. The exit code is 1 if the
             playback fails and 0 otherwise.
         :param start_delay_ms: Time to wait after the initialization.
+        :param speed: Playback speed. If None, the speed setting is used.
+        :param smooth_mouse_movement: Whether to move the mouse smoothly. If
+            None, the setting is used.
         """
         super().__init__()
         self.path = path
@@ -124,6 +129,8 @@ class StartupPlayback(QObject):
         self.macro = macro
         self.exit_on_finish = exit_on_finish
         self.start_delay_ms = start_delay_ms
+        self.speed = speed
+        self.smooth_mouse_movement = smooth_mouse_movement
 
     def schedule(self) -> None:
         """Start the playback after QGIS has been initialized."""
@@ -141,15 +148,31 @@ class StartupPlayback(QObject):
         QTimer.singleShot(self.start_delay_ms, self.start)
 
     def start(self) -> None:
-        """Load the macro file and play it, blocking until the playback ends."""
+        """Play the macros, report the result and quit QGIS if requested."""
         try:
-            macros = self.resolve_macros(MacroFile.load(self.path))
-            LOGGER.info("Playing %d macros from %s on startup", len(macros), self.path)
-            play_macros(macros, _StartupFeedback())
+            self.play()
         except (MacroPluginError, QgsProcessingException) as e:
             self._finish(e)
             return
         self._finish()
+
+    def play(self, feedback: QgsProcessingFeedback | None = None) -> None:
+        """Load the macro file and play it, blocking until the playback ends.
+
+        :param feedback: Receives the progress. Defaults to the log and the
+            message bar.
+        :raises MacroPluginError: If the file cannot be read or the macros
+            cannot be chosen.
+        :raises QgsProcessingException: If the playback fails.
+        """
+        macros = self.resolve_macros(MacroFile.load(self.path))
+        LOGGER.info("Playing %d macros from %s", len(macros), self.path)
+        play_macros(
+            macros,
+            feedback or _StartupFeedback(),
+            speed=self.speed,
+            smooth_mouse_movement=self.smooth_mouse_movement,
+        )
 
     def resolve_macros(self, macro_file: MacroFile) -> list[Macro]:
         """Return the macros of *macro_file* to play.

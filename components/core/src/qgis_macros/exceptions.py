@@ -18,9 +18,14 @@
 
 """Custom exception classes for macro plugin error handling."""
 
+from typing import TYPE_CHECKING
+
 from qgis_plugin_tools.tools.custom_logging import bar_msg
 from qgis_plugin_tools.tools.exceptions import QgsPluginException
 from qgis_plugin_tools.tools.i18n import tr
+
+if TYPE_CHECKING:
+    from qgis_macros.macro_player import PlaybackLocation
 
 
 class MacroPluginError(QgsPluginException):
@@ -53,9 +58,21 @@ class MenuActionNotFoundError(MacroPluginError):
 class MacroPlaybackEndedError(MacroPluginError):
     """Raised when macro playback ends due to an error."""
 
-    def __init__(self, e: Exception) -> None:
-        """Initialize with the underlying exception."""
-        super().__init__(tr("Macro playback ended"), bar_msg(details=str(e)))
+    def __init__(
+        self, e: Exception, location: "PlaybackLocation | None" = None
+    ) -> None:
+        """Initialize with the underlying exception and the failed event."""
+        message = (
+            tr("Macro playback ended")
+            if location is None
+            else tr(
+                "Macro playback ended at event {} of {}",
+                location.event_index + 1,
+                location.event_count,
+            )
+        )
+        super().__init__(message, bar_msg(details=str(e)))
+        self.location = location
 
 
 class InvalidSettingValueError(MacroPluginError):

@@ -42,6 +42,7 @@ from qgis_macros.macro import (
     WidgetPath,
     WidgetSpec,
 )
+from qgis_macros.macro_player import MacroPlayer
 from qgis_macros.settings import Settings
 from qgis_macros.utils import enum_value
 
@@ -68,12 +69,18 @@ class MacroRecorder(QObject):
     def __init__(
         self,
         filter_out_mouse_movements: bool = True,  # noqa: FBT001, FBT002
+        *,
+        ignore_playback: bool = False,
     ) -> None:
         """Initialize the recorder.
 
         Args:
             filter_out_mouse_movements: If True, leading/trailing mouse
                 move events are trimmed from the recording.
+            ignore_playback: If True, nothing is recorded while any macro is
+                played back. Used for recording the use of the macro panel
+                itself, so that playing a macro is recorded as a click on the
+                play button only.
 
         """
         super().__init__(None)
@@ -82,6 +89,7 @@ class MacroRecorder(QObject):
         self.last_record_time = 0  # Tracks the last timestamp
         self._recording = False
         self._filter_out_mouse_movements = filter_out_mouse_movements
+        self._ignore_playback = ignore_playback
         self._widgets_to_filter_events_out: list[QWidget] = []
         # Mouse events inside popup menus, replaced by a menu action event
         # when a menu item is activated
@@ -166,6 +174,8 @@ class MacroRecorder(QObject):
         if obj is None or event is None:
             return False
         if not self._recording or not isinstance(obj, QWidget):
+            return super().eventFilter(obj, event)
+        if self._ignore_playback and MacroPlayer.any_playing():
             return super().eventFilter(obj, event)
 
         elapsed = self._timer.elapsed()
