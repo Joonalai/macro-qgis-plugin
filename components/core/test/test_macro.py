@@ -15,6 +15,7 @@
 #
 #  You should have received a copy of the GNU General Public License
 #  along with macro-qgis-plugin. If not, see <https://www.gnu.org/licenses/>.
+import dataclasses
 from typing import TYPE_CHECKING
 
 import pytest
@@ -203,6 +204,42 @@ def test_key_event_without_focus_is_sent_to_its_window(
     event.perform_event_action(lambda: None)
 
     assert qtest.keyRelease.call_args.args[0] is dialog
+
+
+def test_key_event_fails_if_its_window_is_closed(
+    dialog: Dialog, mocker: "MockerFixture"
+) -> None:
+    qtest = mocker.patch("qgis_macros.macro._qtest")
+    event = MacroKeyEvent(
+        WidgetSpec.create(dialog.line_edit),
+        widget_path=WidgetPath.create(dialog.line_edit),
+        key=enum_value(Qt.Key.Key_A),
+    )
+    dialog.close()
+
+    with pytest.raises(WidgetNotFoundError):
+        event.perform_event_action(lambda: None)
+    qtest.keyPress.assert_not_called()
+
+
+def test_key_event_falls_back_to_focus_in_its_window(
+    dialog: Dialog, mocker: "MockerFixture"
+) -> None:
+    mocker.patch.object(QApplication, "focusWidget", return_value=dialog.combobox)
+    qtest = mocker.patch("qgis_macros.macro._qtest")
+    path = WidgetPath.create(dialog.line_edit)
+    assert path is not None
+    # The widget has been replaced in the window
+    path.nodes[-1] = dataclasses.replace(
+        path.nodes[-1], widget_class="QSpinBox", object_name="renamedEdit"
+    )
+    event = MacroKeyEvent(
+        WidgetSpec("QSpinBox"), widget_path=path, key=enum_value(Qt.Key.Key_A)
+    )
+
+    event.perform_event_action(lambda: None)
+
+    assert qtest.keyPress.call_args.args[0] is dialog.combobox
 
 
 def test_key_event_without_target_fails(mocker: "MockerFixture") -> None:

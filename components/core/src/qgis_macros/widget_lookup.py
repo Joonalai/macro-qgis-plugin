@@ -176,6 +176,11 @@ def find_widget(path: "WidgetPath") -> QWidget | None:
     return None
 
 
+def window_exists(path: "WidgetPath") -> bool:
+    """Check whether a visible window matches the window of *path*."""
+    return bool(_matching_windows(path))
+
+
 def path_leads_to(path: "WidgetPath", widget: QWidget) -> bool:
     """Check whether *path* describes *widget*, without searching the windows.
 
