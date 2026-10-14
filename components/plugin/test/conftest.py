@@ -19,6 +19,7 @@
 import gc
 
 import pytest
+from macro_test_utils import utils
 from qgis.core import QgsApplication
 from qgis_macros.settings import Settings
 
@@ -26,6 +27,12 @@ from qgis_macros.settings import Settings
 @pytest.fixture(autouse=True)
 def _reset_settings():
     Settings.reset()
+
+
+@pytest.fixture(autouse=True)
+def _release_inputs():
+    yield
+    utils.release_inputs()
 
 
 @pytest.fixture(autouse=True)

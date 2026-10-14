@@ -58,6 +58,12 @@ def _reset_settings():
 
 
 @pytest.fixture(autouse=True)
+def _release_inputs():
+    yield
+    utils.release_inputs()
+
+
+@pytest.fixture(autouse=True)
 def _flush_posted_events():
     yield
     QgsApplication.processEvents()
