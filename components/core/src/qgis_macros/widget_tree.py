@@ -111,7 +111,8 @@ def dump(
     :param roots: Widgets to start from. Defaults to the visible top level
         widgets.
     :param find: If given, return a flat list of the widgets whose text,
-        object name or class contains it, ignoring case.
+        placeholder text, tooltip, object name or class contains it,
+        ignoring case.
     :param max_depth: Number of levels to include. Unlimited by default.
     """
     if roots is None:
@@ -164,6 +165,8 @@ def _matches(widget: QWidget, find: str) -> bool:
         needle in value.casefold()
         for value in (
             display_text(widget),
+            widget.placeholderText() if isinstance(widget, QLineEdit) else "",
+            widget.toolTip(),
             widget_object_name(widget),
             widget.__class__.__name__,
         )
