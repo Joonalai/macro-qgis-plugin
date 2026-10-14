@@ -19,10 +19,12 @@
 import dataclasses
 import time
 from functools import partial
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from qgis.core import QgsApplication
-from qgis.PyQt.QtCore import QEvent, QObject, QPoint, pyqtSignal
+from qgis.PyQt.QtCore import QEvent, QObject, QPoint, Qt, pyqtSignal
+from qgis.PyQt.QtGui import QGuiApplication
+from qgis.PyQt.QtTest import QTest
 from qgis.PyQt.QtWidgets import (
     QAction,
     QCheckBox,
@@ -118,6 +120,34 @@ def wait(wait_ms: int) -> None:
     t = time.time()
     while time.time() - t < wait_ms / 1000:
         QgsApplication.processEvents()
+
+
+def release_inputs() -> None:
+    """Release the mouse buttons and keyboard modifiers left pressed by a test.
+
+    Qt keeps the state of the last input event, e.g. the shift modifier of
+    a key release, and it changes the behavior of later tests: a view
+    selects nothing with ``selectRow`` while shift is held.
+    """
+    modifiers = QGuiApplication.keyboardModifiers()
+    buttons = QGuiApplication.mouseButtons()
+    if (
+        modifiers == Qt.KeyboardModifier.NoModifier
+        and buttons == Qt.MouseButton.NoButton
+    ):
+        return
+    # The stubs declare the static methods of QTest as instance methods
+    qtest: Any = QTest
+    target = QWidget()
+    for button in (
+        Qt.MouseButton.LeftButton,
+        Qt.MouseButton.RightButton,
+        Qt.MouseButton.MiddleButton,
+    ):
+        if buttons & button:
+            qtest.mouseRelease(target, button, Qt.KeyboardModifier.NoModifier)
+    qtest.keyRelease(target, Qt.Key.Key_Shift, Qt.KeyboardModifier.NoModifier)
+    target.deleteLater()
 
 
 class WidgetEventListener(QObject):
