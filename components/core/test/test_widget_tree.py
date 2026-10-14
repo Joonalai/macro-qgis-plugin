@@ -18,7 +18,7 @@
 from typing import TYPE_CHECKING
 
 from macro_test_utils.utils import Dialog
-from qgis.PyQt.QtWidgets import QPushButton, QVBoxLayout, QWidget
+from qgis.PyQt.QtWidgets import QLineEdit, QPushButton, QVBoxLayout, QWidget
 from qgis_macros import widget_tree
 
 if TYPE_CHECKING:
@@ -77,6 +77,19 @@ def test_dump_finds_widgets_ignoring_case(dialog: Dialog):
 
     assert [n.text for n in tree.nodes] == ["Click Me", "Click Me too"]
     assert all(not n.children for n in tree.nodes)
+
+
+def test_dump_finds_widgets_by_placeholder_and_tooltip(qtbot: "QtBot"):
+    window = QWidget()
+    line_edit = QLineEdit(window)
+    line_edit.setPlaceholderText("Type to locate")
+    button = QPushButton(window)
+    button.setToolTip("Zoom in")
+    qtbot.addWidget(window)
+    window.show()
+
+    assert widget_tree.dump([window], find="locate").widgets == {1: line_edit}
+    assert widget_tree.dump([window], find="zoom").widgets == {1: button}
 
 
 def test_dump_limits_depth(dialog: Dialog):
