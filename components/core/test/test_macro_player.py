@@ -29,6 +29,7 @@ from macro_test_utils.utils import WidgetEventListener, WidgetInfo
 from qgis.core import Qgis, QgsApplication, QgsFeature, QgsTask
 from qgis.gui import QgsMapToolDigitizeFeature
 from qgis.PyQt.QtCore import QEventLoop, QPoint, QRect, QSize, Qt, QTimer
+from qgis.PyQt.QtGui import QCursor
 from qgis.PyQt.QtWidgets import (
     QApplication,
     QDialog,
@@ -673,6 +674,29 @@ def test_macro_player_play_mouse_move_with_button_held(
         timeout=TIMEOUT,
     ):
         macro_player.play(macro)
+
+
+def test_macro_player_moves_the_cursor_with_button_held(
+    dialog_widget_positions: dict[str, WidgetInfo],
+    macro_player: MacroPlayer,
+    dialog: "Dialog",
+    qtbot: "QtBot",
+):
+    QCursor.setPos(0, 0)
+    macro = Macro(
+        events=[
+            macro_utils.mouse_move_macro_event(
+                dialog_widget_positions["button"],
+                buttons=enum_value(Qt.MouseButton.LeftButton),
+            )
+        ]
+    )
+
+    with qtbot.waitSignal(macro_player.playback_ended, timeout=TIMEOUT):
+        macro_player.play(macro)
+
+    cursor = dialog.button.mapFromGlobal(QCursor.pos())
+    assert dialog.button.rect().contains(cursor)
 
 
 def test_macro_player_play_wheel_event(
