@@ -144,6 +144,8 @@ class MacroFile:
         """Write the file contents to *path*."""
         with path.open("w", encoding="utf-8") as f:
             json.dump(self.serialize(), f, indent=4, ensure_ascii=False)
+            # Text files end with a newline, e.g. for the linters of the users
+            f.write("\n")
 
 
 def _with_uid[T: (Macro, MacroWorkflow)](item: T, data: dict) -> T:
