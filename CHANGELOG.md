@@ -4,6 +4,7 @@
 
 - Playback failures report the macro and event that failed
 - Key events fail instead of typing elsewhere when their window is closed
+- The cursor follows mouse drags during playback
 - Added `MacroRecorder(ignore_playback=True)`, `MacroFile.upsert_macro()` and a widget tree dump
 
 ## 1.1.0 - 2026-10-13

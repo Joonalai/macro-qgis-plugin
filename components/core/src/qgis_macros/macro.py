@@ -44,7 +44,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, ClassVar, Protocol
 
 from qgis.core import Qgis, QgsApplication, QgsLineString
-from qgis.PyQt.QtCore import QEvent, QPoint, QPointF, Qt
+from qgis.PyQt.QtCore import QElapsedTimer, QEvent, QObject, QPoint, QPointF, Qt
 from qgis.PyQt.QtGui import (
     QContextMenuEvent,
     QCursor,
@@ -66,6 +66,8 @@ if TYPE_CHECKING:
     from qgis.PyQt.QtGui import QAction
 
 LOGGER = logging.getLogger(__name__)
+# How long to wait for the window system to report a moved cursor
+CURSOR_MOVE_TIMEOUT_MS = 50
 
 # The PyQt6 stubs declare the static QTest methods as instance methods,
 # which makes the widget argument look like a wrong self argument
@@ -483,6 +485,43 @@ class MacroKeyEvent(BaseMacroEvent):  # noqa: PLW1641
         )
 
 
+class _WindowSystemMoves(QObject):
+    """Move the cursor and drop the mouse moves the window system sends."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._dropped = False
+
+    def move_cursor(self, position: QPoint) -> None:
+        """Move the cursor to *position* and drop the move it causes."""
+        if QCursor.pos() == position:
+            return
+        self._dropped = False
+        QCursor.setPos(position)
+        if QCursor.pos() != position:
+            # The platform cannot move the cursor, e.g. Wayland
+            return
+        timer = QElapsedTimer()
+        timer.start()
+        while not self._dropped and timer.elapsed() < CURSOR_MOVE_TIMEOUT_MS:
+            QApplication.processEvents()
+
+    def eventFilter(  # noqa: N802  # ty: ignore[invalid-method-override]
+        self,
+        watched: QObject | None,  # noqa: ARG002
+        event: QEvent | None,
+    ) -> bool:
+        """Drop the mouse moves of the window system."""
+        if (
+            event is not None
+            and event.type() == QEvent.Type.MouseMove
+            and event.spontaneous()
+        ):
+            self._dropped = True
+            return True
+        return False
+
+
 @dataclass
 class MacroMouseMoveEvent(BaseMacroEvent):  # noqa: PLW1641
     """Mouse movement event containing a sequence of positions."""
@@ -522,13 +561,25 @@ class MacroMouseMoveEvent(BaseMacroEvent):  # noqa: PLW1641
         return
 
     def perform_event_action_with_event(self) -> None:
-        """Replay movement by posting QMouseEvent objects (when buttons are held)."""
+        """Replay movement by posting QMouseEvent objects (when buttons are held).
+
+        The cursor follows the movement, so it is seen in recordings, but the
+        moves the window system sends for it are dropped: the buttons are not
+        held in the window system, so its moves would interrupt the drag.
+        """
         if not self.positions:
             return
         widget = self.get_widget(self.positions[0])
-
-        for position in self.positions:
-            self._post_move_event(widget, self.corrected_position(widget, position))
+        app = require(QApplication.instance())
+        moves = _WindowSystemMoves()
+        app.installEventFilter(moves)
+        try:
+            for position in self.positions:
+                corrected_position = self.corrected_position(widget, position)
+                moves.move_cursor(corrected_position.global_point)
+                self._post_move_event(widget, corrected_position)
+        finally:
+            app.removeEventFilter(moves)
 
     def _post_move_event(self, widget: QWidget, corrected_position: Position) -> None:
         """Post a mouse move event at *corrected_position* to *widget*."""
