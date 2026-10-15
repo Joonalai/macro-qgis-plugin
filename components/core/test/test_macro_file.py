@@ -50,9 +50,9 @@ def test_save_and_load_keeps_uids_and_links(
     assert [m.uid for m in loaded.macros] == [m.uid for m in macros]
     assert loaded.workflows == [workflow]
     assert loaded.workflows[0].uid == workflow.uid
-    assert json.loads(path.read_text(encoding="utf-8"))["format_version"] == (
-        FORMAT_VERSION
-    )
+    text = path.read_text(encoding="utf-8")
+    assert json.loads(text)["format_version"] == FORMAT_VERSION
+    assert text.endswith("}\n")
 
 
 def test_for_workflows_includes_used_macros_once(macros: list[Macro]) -> None:
