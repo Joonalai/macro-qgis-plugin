@@ -35,16 +35,43 @@ class MacroPluginError(QgsPluginException):
 class WidgetNotFoundError(MacroPluginError):
     """Exception raised when a widget is not found."""
 
-    def __init__(self, widget_class: str = "", text: str = "") -> None:
-        """Initialize with optional widget class name and text identifier."""
+    def __init__(
+        self,
+        widget_class: str = "",
+        text: str = "",
+        *,
+        window_title: str | None = None,
+        open_windows: list[str] | None = None,
+        hidden: bool = False,
+    ) -> None:
+        """Initialize with optional widget class name and text identifier.
+
+        Args:
+            widget_class: Class name of the widget.
+            text: Text or object name of the widget.
+            window_title: Title of the window of the widget, if it is not open.
+            open_windows: Titles of the open windows, if the window is not open.
+            hidden: Whether the widget was found but is hidden.
+
+        """
         widget_text = ""
         if widget_class:
             widget_text += f"{widget_class} - "
         widget_text += text
 
-        super().__init__(
-            tr("Widget {} not found.", widget_text),
-        )
+        if window_title is not None:
+            message = tr(
+                "Widget {} not found, because its window '{}' is not open. "
+                "Open windows: {}.",
+                widget_text,
+                window_title,
+                ", ".join(f"'{title}'" for title in open_windows or []),
+            )
+        elif hidden:
+            message = tr("Widget {} not found, because it is hidden.", widget_text)
+        else:
+            message = tr("Widget {} not found.", widget_text)
+        super().__init__(message)
 
 
 class MenuActionNotFoundError(MacroPluginError):
