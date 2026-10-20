@@ -5,6 +5,7 @@
 - Playback failures report the macro and event that failed
 - Key events fail instead of typing elsewhere when their window is closed
 - The cursor follows mouse drags during playback
+- Right clicks recorded where context menus open on press play where they open on release
 - Widget lookup errors tell if the window is not open or the widget is hidden
 - Added `MacroRecorder(ignore_playback=True)`, `MacroFile.upsert_macro()` and a widget tree dump
 

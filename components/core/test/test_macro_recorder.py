@@ -349,6 +349,10 @@ def test_macro_recorder_should_keep_context_menu_click(
     assert isinstance(release, MacroMouseEvent)
     assert release.is_release
     assert release.button == enum_value(Qt.MouseButton.RightButton)
+    # The release opens the menu where menus open on release
+    assert release.widget_spec == press.widget_spec
+    assert release.widget_path == press.widget_path
+    assert release.position == press.position
     assert isinstance(menu_action, MacroMenuActionEvent)
     assert menu_action.action_path == ["Styles", "fast"]
 

@@ -250,3 +250,46 @@ def test_key_event_without_target_fails(mocker: "MockerFixture") -> None:
     with pytest.raises(WidgetNotFoundError):
         event.perform_event_action(lambda: None)
     qtest.keyPress.assert_not_called()
+
+
+def _right_click_release_on_menu(dialog: Dialog) -> list[MacroMouseEvent]:
+    """Return a right click whose release was recorded on a context menu."""
+    right_button = enum_value(Qt.MouseButton.RightButton)
+    return [
+        MacroMouseEvent(
+            WidgetSpec.create(dialog.button),
+            widget_path=WidgetPath.create(dialog.button),
+            position=Position((5, 5), (105, 105)),
+            button=right_button,
+        ),
+        MacroMouseEvent(
+            WidgetSpec("QMenu"),
+            position=Position((1, 1), (105, 105)),
+            button=right_button,
+            is_release=True,
+        ),
+    ]
+
+
+def test_deserialized_release_on_menu_is_moved_to_its_press(dialog: Dialog) -> None:
+    data = Macro(events=[*_right_click_release_on_menu(dialog)]).serialize()
+
+    press, release = Macro.deserialize(data).events
+
+    assert isinstance(press, MacroMouseEvent)
+    assert isinstance(release, MacroMouseEvent)
+    assert release.widget_spec == press.widget_spec
+    assert release.widget_path == press.widget_path
+    assert release.position == press.position
+
+
+def test_release_on_menu_is_kept_after_press_in_menu(dialog: Dialog) -> None:
+    press, release = _right_click_release_on_menu(dialog)
+    press.widget_spec = WidgetSpec("QMenu")
+    press.widget_path = None
+
+    _, deserialized_release = Macro.deserialize(
+        Macro(events=[press, release]).serialize()
+    ).events
+
+    assert deserialized_release == release

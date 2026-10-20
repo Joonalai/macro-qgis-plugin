@@ -866,6 +866,34 @@ def _context_menu_opens_on_release() -> bool:
     return sys.platform == "win32"
 
 
+def attach_popup_releases_to_presses(events: list[MacroEvent]) -> None:
+    """Move the mouse releases recorded on popups to the widgets of their presses.
+
+    A context menu that opens on the press (e.g. on Linux) gets the release
+    of the right click. On platforms that open context menus on the release
+    (e.g. on Windows), the menu is not open yet when the release is played.
+    Qt delivers a release to the widget of its press if no popup opens in
+    between, so the release is played there and opens the menu if needed.
+    """
+    press: MacroMouseEvent | None = None
+    for event in events:
+        if not isinstance(event, MacroMouseEvent):
+            continue
+        if not event.is_release:
+            press = event
+            continue
+        if (
+            press is not None
+            and press.button == event.button
+            and press.widget_path is not None
+            and event.widget_path is None
+        ):
+            event.widget_spec = press.widget_spec
+            event.widget_path = press.widget_path
+            event.position = press.position
+        press = None
+
+
 def new_macro_uid() -> str:
     """Return a unique macro identifier that sorts by creation time."""
     return f"{time.time_ns():020d}_{uuid.uuid4().hex[:8]}"
@@ -968,6 +996,8 @@ class Macro:
             event_cls = globals()[class_name]
             event = event_cls(**event_data)
             events.append(event)
+        # Macros recorded before the releases were moved
+        attach_popup_releases_to_presses(events)
         return cls(
             events,
             data["name"],

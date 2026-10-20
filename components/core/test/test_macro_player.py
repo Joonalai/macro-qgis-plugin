@@ -989,6 +989,43 @@ def test_macro_player_should_activate_context_menu_item(
         macro_player.play(macro)
 
 
+def test_macro_player_should_open_context_menu_recorded_on_press_on_release(
+    styles_menu: "tuple[QMenu, QAction]",
+    dialog_widget_positions: dict[str, WidgetInfo],
+    macro_player: MacroPlayer,
+    dialog: "Dialog",
+    qtbot: "QtBot",
+    mocker: "MockerFixture",
+):
+    # The macro is recorded where context menus open on press, so the
+    # release lands on the menu, and played where they open on release
+    mocker.patch("qgis_macros.macro._context_menu_opens_on_release", return_value=True)
+    menu, fast = styles_menu
+    dialog.button.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+    dialog.button.customContextMenuRequested.connect(
+        lambda point: menu.exec(dialog.button.mapToGlobal(point))
+    )
+    press, release = macro_utils.widget_clicking_macro_events(
+        dialog_widget_positions["button"],
+        button=enum_value(Qt.MouseButton.RightButton),
+    )
+    assert isinstance(release, MacroMouseEvent)
+    release.widget_spec = WidgetSpec("QMenu")
+    release.widget_path = None
+    release.position = Position((1, 1), release.position.global_position)
+    recorded = Macro(
+        events=[press, release, *_menu_action_macro("Styles", "fast").events]
+    )
+    macro = Macro.deserialize(recorded.serialize())
+
+    with qtbot.waitSignals(
+        [macro_player.playback_ended, fast.triggered],
+        check_params_cbs=checkers,
+        timeout=TIMEOUT,
+    ):
+        macro_player.play(macro)
+
+
 @pytest.mark.parametrize(
     "action_path",
     [["Styles", "missing"], ["missing"], ["Styles"], ["Zoom to Layer", "fast"]],

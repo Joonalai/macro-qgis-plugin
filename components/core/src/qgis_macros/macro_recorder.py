@@ -41,6 +41,7 @@ from qgis_macros.macro import (
     Position,
     WidgetPath,
     WidgetSpec,
+    attach_popup_releases_to_presses,
 )
 from qgis_macros.macro_player import MacroPlayer
 from qgis_macros.settings import Settings
@@ -163,6 +164,7 @@ class MacroRecorder(QObject):
             else self._recorded_events
         )
         self._interpolate_mouse_move_events(events)
+        attach_popup_releases_to_presses(events)
         macro = Macro(events, locale=utils.current_locale())
         LOGGER.debug("Recorded macro %s", macro)
         return macro
