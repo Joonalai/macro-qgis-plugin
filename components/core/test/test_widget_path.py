@@ -30,6 +30,7 @@ from qgis.PyQt.QtWidgets import (
     QWidget,
 )
 from qgis_macros import widget_lookup
+from qgis_macros.exceptions import WidgetNotFoundError
 from qgis_macros.macro import (
     Macro,
     MacroMouseEvent,
@@ -173,6 +174,29 @@ def test_find_by_path_ignores_hidden_widget(dialog: Dialog) -> None:
     dialog.button.hide()
 
     assert widget_lookup.find_by_path(spec, path, position) is None
+
+
+def test_resolve_widget_tells_that_widget_is_hidden(dialog: Dialog) -> None:
+    path = require(WidgetPath.create(dialog.button))
+    spec = WidgetSpec.create(dialog.button)
+    dialog.button.hide()
+
+    with pytest.raises(WidgetNotFoundError, match="because it is hidden"):
+        widget_lookup.resolve_widget(spec, path, Position((0, 0), (0, 0)))
+
+
+def test_resolve_widget_tells_that_window_is_not_open(dialog: Dialog) -> None:
+    path = require(WidgetPath.create(dialog.button))
+    spec = WidgetSpec.create(dialog.button)
+    dialog.setWindowTitle("Other window")
+    dialog.setObjectName("otherWindow")
+
+    with pytest.raises(WidgetNotFoundError) as error:
+        widget_lookup.resolve_widget(spec, path, Position((0, 0), (0, 0)))
+
+    message = str(error.value)
+    assert f"window '{path.window_title}' is not open" in message
+    assert "'Other window'" in message
 
 
 @pytest.fixture

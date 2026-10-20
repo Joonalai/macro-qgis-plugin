@@ -217,7 +217,7 @@ def test_key_event_fails_if_its_window_is_closed(
     )
     dialog.close()
 
-    with pytest.raises(WidgetNotFoundError):
+    with pytest.raises(WidgetNotFoundError, match="is not open"):
         event.perform_event_action(lambda: None)
     qtest.keyPress.assert_not_called()
 

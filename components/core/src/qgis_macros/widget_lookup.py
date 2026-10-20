@@ -70,7 +70,29 @@ def resolve_widget(
         if widget is not None:
             LOGGER.debug("Found %s with %s", spec, strategy.__name__)
             return widget
-    raise WidgetNotFoundError(spec.widget_class, spec.text)
+    raise not_found_error(spec, path)
+
+
+def not_found_error(
+    spec: "WidgetSpec", path: "WidgetPath | None"
+) -> WidgetNotFoundError:
+    """Return an error telling why the widget of *spec* and *path* is not found.
+
+    The window of the widget may not be open, e.g. if an earlier event did
+    not open the expected dialog, or the widget may be hidden.
+    """
+    if path is not None and not path.is_map_canvas:
+        if not window_exists(path):
+            return WidgetNotFoundError(
+                spec.widget_class,
+                spec.text,
+                window_title=path.window_title,
+                open_windows=[window.windowTitle() for window in _open_windows()],
+            )
+        widget = find_widget(path)
+        if widget is not None and not widget.isVisible():
+            return WidgetNotFoundError(spec.widget_class, spec.text, hidden=True)
+    return WidgetNotFoundError(spec.widget_class, spec.text)
 
 
 def find_map_canvas(
@@ -228,14 +250,20 @@ def _matching_windows(path: "WidgetPath") -> list[QWidget]:
         title_matches = window.windowTitle() == path.window_title
         return 2 * name_matches + title_matches
 
-    windows = [
+    return sorted(
+        (window for window in _open_windows() if score(window)),
+        key=score,
+        reverse=True,
+    )
+
+
+def _open_windows() -> list[QWidget]:
+    """Return the visible windows, except popups."""
+    return [
         widget
         for widget in QApplication.topLevelWidgets()
         if widget.isVisible() and widget.windowType() != Qt.WindowType.Popup
     ]
-    return sorted(
-        (window for window in windows if score(window)), key=score, reverse=True
-    )
 
 
 def _follow_nodes(window: QWidget, nodes: Iterable["WidgetPathNode"]) -> QWidget | None:

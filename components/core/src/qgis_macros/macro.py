@@ -59,7 +59,7 @@ from qgis_plugin_tools.utils.typing_utils import require
 
 from qgis_macros import utils, widget_lookup
 from qgis_macros.constants import ASCII_KEY_LIMIT
-from qgis_macros.exceptions import MenuActionNotFoundError, WidgetNotFoundError
+from qgis_macros.exceptions import MenuActionNotFoundError
 from qgis_macros.utils import enum_value
 
 if TYPE_CHECKING:
@@ -396,14 +396,13 @@ class MacroKeyEvent(BaseMacroEvent):  # noqa: PLW1641
         only if the recorded window is open.
 
         Raises:
-            WidgetNotFoundError: If there is no widget to send the event to.
+            WidgetNotFoundError: If there is no widget to send the event to,
+                e.g. if the recorded window is closed.
 
         """
         widget = self._get_target_widget()
         if widget is None:
-            raise WidgetNotFoundError(
-                self.widget_spec.widget_class, self.widget_spec.text
-            )
+            raise widget_lookup.not_found_error(self.widget_spec, self.widget_path)
         QgsApplication.processEvents()
         schedule_next()
         key = Qt.Key(self.key)
